@@ -398,8 +398,8 @@ VAO* drawBeak(GLfloat x, GLfloat y, GLfloat z, GLfloat size)
   return create3DObject(GL_TRIANGLES, 3, vertex_buffer_data, color_buffer_data, GL_FILL);
 }
 
-int numOfIce = 0;
-VAO *triangle, *rectangle, *bird, *ground, *birdFace, *birdBeak, *birdEyeIris, *birdEyeSclera, *canonWheel, *canonTunnel, *iceBricks[100], *iceBricksOutline[100];
+int numOfIce = 0, numOfPiggy = 0;
+VAO *triangle, *rectangle, *bird, *ground, *birdFace, *birdBeak, *birdEyeIris, *birdEyeSclera, *canonWheel, *canonTunnel, *iceBricks[100], *iceBricksOutline[100], *piggyFace[100], *piggyLeftEyeIris[100], *piggyRightEyeIris[100], *piggyLeftEyeSclera[100], *piggyRightEyeSclera[100], *piggyNose[100];
 
 //Pupil and Sclera are the colored part in eye, I assume that bird has no  pupil
 
@@ -496,13 +496,13 @@ void createGround()
   };
 
   static const GLfloat color_buffer_data [] = {
-    0,1,0, // color 1
-    0,1,0, // color 2
-    0,1,0, // color 3
+    0.5, 0.18, 0.12, // color 1
+    0.5, 0.18, 0.12, // color 2
+    0.5, 0.18, 0.12, // color 3
 
-    0,1,0, // color 3
-    0,1,0, // color 4
-    0,1,0  // color 1
+    0.5, 0.18, 0.12, // color 3
+    0.5, 0.18, 0.12, // color 4
+    0.5, 0.18, 0.12  // color 1
   };
 
   // create3DObject creates and returns a handle to a VAO that can be used later
@@ -539,7 +539,23 @@ void createCanon()
   canonTunnel = create3DObject(GL_TRIANGLES, 6, vertex_buffer_data, color_buffer_data, GL_FILL);
 }
 
-void createIcebricksSquare(GLint sizeOfMesh, GLfloat depth, GLfloat startX)
+void createPiggy(GLfloat xPiggy, GLfloat yPiggy)
+{
+  float padding = 5.0f;
+  float theAngle = M_PI/6;
+  float eyeIrisShiftX = ((3*(OBSTACLE_ICE_SIZE/8)) - padding) * cos(theAngle) - (padding/4);
+  float eyeIrisShiftY = ((3*(OBSTACLE_ICE_SIZE/8)) - padding) * sin(theAngle);
+  piggyLeftEyeSclera[numOfPiggy]  = drawCircle(xPiggy - eyeIrisShiftX - (padding/4), yPiggy - ((1.4) * padding) + eyeIrisShiftY, 0, (OBSTACLE_ICE_SIZE/20) , 360, 0.0, 0.0, 0.0);
+  piggyRightEyeSclera[numOfPiggy]  = drawCircle(xPiggy + eyeIrisShiftX + (padding/4), yPiggy - ((1.4) * padding) + eyeIrisShiftY, 0, (OBSTACLE_ICE_SIZE/20) , 360, 0.0, 0.0, 0.0);
+  piggyLeftEyeIris[numOfPiggy]  = drawCircle(xPiggy - eyeIrisShiftX, yPiggy - ((1.5) * padding) + eyeIrisShiftY, 0, (OBSTACLE_ICE_SIZE/10) , 360, 1.0, 1.0, 1.0);
+  piggyRightEyeIris[numOfPiggy] = drawCircle(xPiggy + eyeIrisShiftX, yPiggy - ((1.5) * padding) + eyeIrisShiftY, 0, (OBSTACLE_ICE_SIZE/10) , 360, 1.0, 1.0, 1.0);
+  piggyNose[numOfPiggy] = drawCircle(xPiggy, yPiggy - ((1.8) * padding), 0, (OBSTACLE_ICE_SIZE/9) , 360, 0.0, 0.8, 0.0);
+  piggyFace[numOfPiggy++] = drawCircle(xPiggy, yPiggy - padding, 0, (OBSTACLE_ICE_SIZE/2) - padding, 360, 0.0, 1.0, 0.0);
+
+}
+
+
+void createObstacle(GLint sizeOfMesh, GLfloat depth, GLfloat startX)
 {
   float vertex_matrix[sizeOfMesh][sizeOfMesh];
   float x =  (float)(startX + (OBSTACLE_ICE_SIZE/2));
@@ -554,10 +570,11 @@ void createIcebricksSquare(GLint sizeOfMesh, GLfloat depth, GLfloat startX)
         iceBricksOutline[numOfIce] = drawRectangle(x + (float)(i * OBSTACLE_ICE_SIZE), y + (float)(j * OBSTACLE_ICE_SIZE), 0.0f, OBSTACLE_ICE_SIZE/2, OBSTACLE_ICE_SIZE/2, 0.65f, 0.94f, 0.95f, false);
         iceBricks[numOfIce++] = drawRectangle(x + (float)(i * OBSTACLE_ICE_SIZE), y + (float)(j * OBSTACLE_ICE_SIZE), 0.0f, (OBSTACLE_ICE_SIZE/2) - padding, (OBSTACLE_ICE_SIZE/2) - padding, 0.65f, 0.94f, 0.95f, true);
       }
+      else
+        createPiggy(x + (float)(i * OBSTACLE_ICE_SIZE), y + (float)(j * OBSTACLE_ICE_SIZE));
     }
   }
 }
-
 
 float camera_rotation_angle = 90;
 float rectangle_rotation = 0;
@@ -672,6 +689,22 @@ void draw ()
     draw3DObject(iceBricks[i]);
   }
 
+  Matrices.model = glm::mat4(1.0f);
+  glm::mat4 translatePiggy = glm::translate (glm::vec3(0, 0, 0));        // glTranslatef
+  glm::mat4 rotatePiggy = glm::rotate(0.0f, glm::vec3(0, 0, 1));
+  Matrices.model *= translatePiggy* rotatePiggy; 
+  MVP = VP * Matrices.model;
+  glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
+
+  for (int i = 0; i < numOfPiggy; i++)
+  {
+    draw3DObject(piggyFace[i]);
+    draw3DObject(piggyNose[i]);
+    draw3DObject(piggyLeftEyeIris[i]);
+    draw3DObject(piggyRightEyeIris[i]);
+    draw3DObject(piggyLeftEyeSclera[i]);
+    draw3DObject(piggyRightEyeSclera[i]);
+  }
 
   // Increment angles 
   float increments = 1;
@@ -740,8 +773,7 @@ void initGL (GLFWwindow* window, int width, int height)
 	createBird(10.0f, 1, 0, 0, 1, 0);
   createGround();
   createCanon();
-  createIcebricksSquare(3, 1, OBSTACLE_STARTSX);
-  // createPiggy();
+  createObstacle(3, 1, OBSTACLE_STARTSX);
 	// Create and compile our GLSL program from the shaders
 	programID = LoadShaders( "Sample_GL.vert", "Sample_GL.frag" );
 	// Get a handle for our "MVP" uniform
