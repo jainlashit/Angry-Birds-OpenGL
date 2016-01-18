@@ -21,6 +21,8 @@
 #define CANON_TUNNEL_LENGTH 70
 #define OBSTACLE_STARTSX 800.0f
 #define OBSTACLE_ICE_SIZE 50.0f
+#define CANON_MOMENTUM 30.0f
+#define EARTH_GRAVITY 1.0f
 
 using namespace std;
 
@@ -43,6 +45,9 @@ struct GLMatrices {
 } Matrices;
 
 GLuint programID;
+
+int numOfIce = 0, numOfPiggy = 0, numOfBirds = 0, birdStatus[10] = {0}, birdDisplaceX[10] = {0}, birdDisplaceY[10] = {0};
+VAO *triangle, *rectangle, *bird[10], *ground, *birdFace[10], *birdBeak[10], *birdEyeIris[10], *birdEyeSclera[10], *canonWheel, *canonTunnel, *iceBricks[30], *iceBricksOutline[30], *piggyFace[30], *piggyLeftEyeIris[10], *piggyRightEyeIris[10], *piggyLeftEyeSclera[10], *piggyRightEyeSclera[10], *piggyNose[10];
 
 /* Function to load Shaders - Use it as it is */
 GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path) {
@@ -124,6 +129,21 @@ GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path
 static void error_callback(int error, const char* description)
 {
     fprintf(stderr, "Error: %s\n", description);
+}
+
+float phy_ux, phy_uy, phy_time = 0.0f;
+bool phy_start = false;
+
+void physics_engine(int index)
+{
+  if(phy_start)
+  {
+    phy_time += 0.1;
+    birdDisplaceX[index] = phy_ux * phy_time;
+    birdDisplaceY[index] = (phy_uy * phy_time) - ((EARTH_GRAVITY * phy_time * phy_time)/2);
+  }
+  else
+    phy_ux = phy_uy = phy_time = 0.0f;
 }
 
 void quit(GLFWwindow *window)
@@ -247,11 +267,20 @@ void keyboard (GLFWwindow* window, int key, int scancode, int action, int mods)
             case GLFW_KEY_ESCAPE:
                 quit(window);
                 break;
+            case GLFW_KEY_SPACE:
+                if(!phy_start)
+                {
+                  phy_start = true;
+                  phy_ux = CANON_MOMENTUM * cos(canon_tunnel_angle);
+                  phy_uy = CANON_MOMENTUM * sin(canon_tunnel_angle);
+                }
+                break;
             default:
                 break;
         }
     }
 }
+
 
 /* Executed for character input (like in text boxes) */
 void keyboardChar (GLFWwindow* window, unsigned int key)
@@ -398,8 +427,7 @@ VAO* drawBeak(GLfloat x, GLfloat y, GLfloat z, GLfloat size)
   return create3DObject(GL_TRIANGLES, 3, vertex_buffer_data, color_buffer_data, GL_FILL);
 }
 
-int numOfIce = 0, numOfPiggy = 0;
-VAO *triangle, *rectangle, *bird, *ground, *birdFace, *birdBeak, *birdEyeIris, *birdEyeSclera, *canonWheel, *canonTunnel, *iceBricks[100], *iceBricksOutline[100], *piggyFace[100], *piggyLeftEyeIris[100], *piggyRightEyeIris[100], *piggyLeftEyeSclera[100], *piggyRightEyeSclera[100], *piggyNose[100];
+
 
 //Pupil and Sclera are the colored part in eye, I assume that bird has no  pupil
 
@@ -453,7 +481,7 @@ void createRectangle ()
   rectangle = create3DObject(GL_TRIANGLES, 6, vertex_buffer_data, color_buffer_data, GL_FILL);
 }
 
-void createBirdEye(GLfloat radius, GLfloat x, GLfloat y, GLfloat z)
+void createBirdEye(GLfloat radius, GLfloat x, GLfloat y, GLfloat z, int order)
 {
   GLfloat irisRadius = radius/3;
   GLfloat scleraRadius = irisRadius / 2;
@@ -461,24 +489,25 @@ void createBirdEye(GLfloat radius, GLfloat x, GLfloat y, GLfloat z)
   GLfloat xIris = x + (radius - irisRadius) * cos(theAngle);
   GLfloat yIris = y + (radius - irisRadius) * sin(theAngle);
   GLfloat zIris = z;
-  birdEyeIris = drawCircle(xIris, yIris, zIris, irisRadius, 360, 0, 0, 0) ;
+  birdEyeIris[order] = drawCircle(xIris, yIris, zIris, irisRadius, 360, 0, 0, 0) ;
   GLfloat xSclera = xIris + (irisRadius - scleraRadius) * cos(theAngle);
   GLfloat ySclera = yIris + (irisRadius - scleraRadius) * sin(theAngle);
   GLfloat zSclera = zIris;
-  birdEyeSclera = drawCircle(xSclera, ySclera, zSclera, scleraRadius, 360, 1, 1, 1);
+  birdEyeSclera[order] = drawCircle(xSclera, ySclera, zSclera, scleraRadius, 360, 1, 1, 1);
 }
 
 
 void createBird(GLfloat size, GLfloat red, GLfloat blue, GLfloat green, int order, int type)
 {
   GLfloat radius = size;
-  GLfloat x = (float)GROUND_HEIGHT + radius; //Illogical but just for sake :'(
+  GLfloat x = (float)GROUND_HEIGHT + radius; //Illogical but just for sake :P
   GLfloat y = (float)GROUND_HEIGHT + radius;
   GLfloat z = 0;
   GLint numberOfSides = 360;
-  birdFace = drawCircle(x, y, z, radius, numberOfSides, red, blue, green);
-  birdBeak = drawBeak(x, y, z, size);
-  createBirdEye(size, x, y, z);
+  birdFace[order] = drawCircle(x, y, z, radius, numberOfSides, red, blue, green);
+  birdBeak[order] = drawBeak(x, y, z, size);
+  createBirdEye(size, x, y, z, order);
+  numOfBirds++;
 }
 
 
@@ -549,7 +578,7 @@ void createPiggy(GLfloat xPiggy, GLfloat yPiggy)
   piggyRightEyeSclera[numOfPiggy]  = drawCircle(xPiggy + eyeIrisShiftX + (padding/4), yPiggy - ((1.4) * padding) + eyeIrisShiftY, 0, (OBSTACLE_ICE_SIZE/20) , 360, 0.0, 0.0, 0.0);
   piggyLeftEyeIris[numOfPiggy]  = drawCircle(xPiggy - eyeIrisShiftX, yPiggy - ((1.5) * padding) + eyeIrisShiftY, 0, (OBSTACLE_ICE_SIZE/10) , 360, 1.0, 1.0, 1.0);
   piggyRightEyeIris[numOfPiggy] = drawCircle(xPiggy + eyeIrisShiftX, yPiggy - ((1.5) * padding) + eyeIrisShiftY, 0, (OBSTACLE_ICE_SIZE/10) , 360, 1.0, 1.0, 1.0);
-  piggyNose[numOfPiggy] = drawCircle(xPiggy, yPiggy - ((1.8) * padding), 0, (OBSTACLE_ICE_SIZE/9) , 360, 0.0, 0.8, 0.0);
+  piggyNose[numOfPiggy] = drawCircle(xPiggy, yPiggy - ((1.8) * padding), 0, (OBSTACLE_ICE_SIZE/9) , 360, 0.0, 0.7, 0.0);
   piggyFace[numOfPiggy++] = drawCircle(xPiggy, yPiggy - padding, 0, (OBSTACLE_ICE_SIZE/2) - padding, 360, 0.0, 1.0, 0.0);
 
 }
@@ -576,12 +605,17 @@ void createObstacle(GLint sizeOfMesh, GLfloat depth, GLfloat startX)
   }
 }
 
+
 float camera_rotation_angle = 90;
 float rectangle_rotation = 0;
 float triangle_rotation = 0;
 
 /* Render the scene with openGL */
 /* Edit this function according to your assignment */
+
+glm::mat4 rotateBird[10];
+glm::mat4 translateBird[10];
+
 void draw ()
 {
   // clear the color and depth in the frame buffer
@@ -642,17 +676,43 @@ void draw ()
   // draw3DObject draws the VAO given to it using current MVP matrix
   draw3DObject(rectangle);
   Matrices.model = glm::mat4(1.0f);
-
-  glm::mat4 translateBird = glm::translate (glm::vec3(0, 0, 0));        // glTranslatef
-  glm::mat4 rotateBird = glm::rotate(0.0f, glm::vec3(0,0,1));
-  Matrices.model *= translateBird * rotateBird;
-  MVP = VP * Matrices.model;
-  glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
-  draw3DObject(birdBeak);
-  draw3DObject(birdFace);
-  draw3DObject(birdEyeIris);
-  draw3DObject(birdEyeSclera);
-  Matrices.model = glm::mat4(1.0f);
+  for (int i = 0; i < numOfBirds; i++)
+  {
+    if(birdStatus[i] == 0)
+    {  
+      translateBird[i] = glm::translate (glm::vec3(0, 0, 0));        // glTranslatef
+      rotateBird[i] = glm::rotate(0.0f, glm::vec3(0,0,1));
+      Matrices.model *= translateBird[i] * rotateBird[i];
+      MVP = VP * Matrices.model;
+      glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
+      draw3DObject(birdBeak[i]);
+      draw3DObject(birdFace[i]);
+      draw3DObject(birdEyeIris[i]);
+      draw3DObject(birdEyeSclera[i]);
+      Matrices.model = glm::mat4(1.0f);
+    }
+    else if(birdStatus[i] == 1)
+    {
+      physics_engine(i);
+      translateBird[i] = glm::translate (glm::vec3(60.0f + (CANON_TUNNEL_LENGTH * cos(canon_tunnel_angle)) + birdDisplaceX[i], 20.0f + (CANON_TUNNEL_LENGTH * sin(canon_tunnel_angle) + birdDisplaceY[i]), 0));        // glTranslatef
+      rotateBird[i] = glm::rotate(0.0f, glm::vec3(0,0,1));
+      Matrices.model *= translateBird[i] * rotateBird[i];
+      MVP = VP * Matrices.model;
+      glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
+      draw3DObject(birdBeak[i]);
+      draw3DObject(birdFace[i]);
+      draw3DObject(birdEyeIris[i]);
+      draw3DObject(birdEyeSclera[i]);
+      Matrices.model = glm::mat4(1.0f);
+    }
+    else
+    {
+      Matrices.model = glm::mat4(1.0f);
+      //after the bird is dead
+      //TODO write code to move next bird in the waiting queue
+      //TODO change next's displaceX and displaceY also 
+    }
+  }
 
   glm::mat4 translateGround = glm::translate (glm::vec3(0, 0, 0));        // glTranslatef
   glm::mat4 rotateGround = glm::rotate(0.0f, glm::vec3(0,0,1));
@@ -770,10 +830,12 @@ void initGL (GLFWwindow* window, int width, int height)
 	// Create the models
 	createTriangle (); // Generate the VAO, VBOs, vertices data & copy into the array buffer
 	createRectangle ();
-	createBird(10.0f, 1, 0, 0, 1, 0);
+	createBird(10.0f, 1, 0, 0, 0, 1);
   createGround();
   createCanon();
   createObstacle(3, 1, OBSTACLE_STARTSX);
+  birdStatus[0] = 1;
+
 	// Create and compile our GLSL program from the shaders
 	programID = LoadShaders( "Sample_GL.vert", "Sample_GL.frag" );
 	// Get a handle for our "MVP" uniform

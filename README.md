@@ -54,3 +54,9 @@ It is recommended to use GLFW+GLAD+GLM on all OSes.
 
 FreeGLUT+GLEW+GLM can be used only on linux but not recommended.
 Use apt-get to install FreeGLUT, libglew, glm on Linux.
+
+
+##Controls
+
+Mouse Left and Right keys for rotating the canon
+Space Bar for launching the bird
