@@ -13,12 +13,14 @@
 #include <glm/gtc/matrix_transform.hpp>
 
 #define SCREEN_HEIGHT 480
-#define SCREEN_WIDTH 640
+#define SCREEN_WIDTH 1280  
 #define GROUND_HEIGHT 50
 #define BIRD_MARGIN 30
 #define CANON_WHEEL_CENTERX 120
 #define CANON_WHEEL_CENTERY 70
 #define CANON_TUNNEL_LENGTH 70
+#define OBSTACLE_STARTSX 800.0f
+#define OBSTACLE_ICE_SIZE 50.0f
 
 using namespace std;
 
@@ -214,6 +216,8 @@ void draw3DObject (struct VAO* vao)
 
 float triangle_rot_dir = 1;
 float rectangle_rot_dir = 1;
+float canon_tunnel_rotation = 0;
+float canon_tunnel_angle = 0;
 bool triangle_rot_status = true;
 bool rectangle_rot_status = true;
 
@@ -268,12 +272,15 @@ void mouseButton (GLFWwindow* window, int button, int action, int mods)
     switch (button) {
         case GLFW_MOUSE_BUTTON_LEFT:
             if (action == GLFW_RELEASE)
-                triangle_rot_dir *= -1;
+                canon_tunnel_rotation = 0.0f;
+            else if(action == GLFW_PRESS)
+              canon_tunnel_rotation = 0.01f;
             break;
         case GLFW_MOUSE_BUTTON_RIGHT:
-            if (action == GLFW_RELEASE) {
-                rectangle_rot_dir *= -1;
-            }
+            if (action == GLFW_RELEASE)
+                canon_tunnel_rotation = 0.0f;
+            else
+              canon_tunnel_rotation = -0.01f;
             break;
         default:
             break;
@@ -342,7 +349,38 @@ VAO* drawCircle(GLfloat x, GLfloat y, GLfloat z, GLfloat radius, GLint numberOfS
 
   return create3DObject(GL_TRIANGLE_FAN, numberOfVertices, allVertices, allColors, GL_FILL);
 }
-void drawRectangle();
+
+VAO* drawRectangle(GLfloat x, GLfloat y, GLfloat z, GLfloat halfLength, GLfloat halfWidth, GLfloat red, GLfloat blue, GLfloat green, bool fill_mode) 
+{
+  cout << x << " " << y << " " << halfLength << " " << halfWidth << endl;
+
+    // GL3 accepts only Triangles. Quads are not supported
+  GLfloat vertex_buffer_data [] = {
+    x - halfWidth, y + halfLength, z, // vertex 1
+    x - halfWidth, y - halfLength, z, // vertex 2
+    x + halfWidth, y - halfLength, z, // vertex 3
+
+    x + halfWidth, y - halfLength, z, // vertex 3
+    x + halfWidth, y + halfLength, z, // vertex 4
+    x - halfWidth, y + halfLength, z // vertex 1
+  };
+
+  GLfloat color_buffer_data [] = {
+    red ,blue, green, // color 1
+    red ,blue, green, // color 2
+    red ,blue, green, // color 3
+
+    red ,blue, green, // color 3
+    red ,blue, green, // color 4
+    red ,blue, green  // color 1
+  };
+
+  // create3DObject creates and returns a handle to a VAO that can be used later
+  if(fill_mode)
+    return create3DObject(GL_TRIANGLES, 6, vertex_buffer_data, color_buffer_data, GL_FILL);
+  else
+    return create3DObject(GL_TRIANGLES, 6, vertex_buffer_data, color_buffer_data, GL_LINE);
+}
 
 VAO* drawBeak(GLfloat x, GLfloat y, GLfloat z, GLfloat size)
 {
@@ -360,8 +398,8 @@ VAO* drawBeak(GLfloat x, GLfloat y, GLfloat z, GLfloat size)
   return create3DObject(GL_TRIANGLES, 3, vertex_buffer_data, color_buffer_data, GL_FILL);
 }
 
-
-VAO *triangle, *rectangle, *bird, *ground, *birdFace, *birdBeak, *birdEyeIris, *birdEyeSclera, *canonWheel, *canonTunnel;
+int numOfIce = 0;
+VAO *triangle, *rectangle, *bird, *ground, *birdFace, *birdBeak, *birdEyeIris, *birdEyeSclera, *canonWheel, *canonTunnel, *iceBricks[100], *iceBricksOutline[100];
 
 //Pupil and Sclera are the colored part in eye, I assume that bird has no  pupil
 
@@ -501,6 +539,25 @@ void createCanon()
   canonTunnel = create3DObject(GL_TRIANGLES, 6, vertex_buffer_data, color_buffer_data, GL_FILL);
 }
 
+void createIcebricksSquare(GLint sizeOfMesh, GLfloat depth, GLfloat startX)
+{
+  float vertex_matrix[sizeOfMesh][sizeOfMesh];
+  float x =  (float)(startX + (OBSTACLE_ICE_SIZE/2));
+  float y = (float)(GROUND_HEIGHT + (OBSTACLE_ICE_SIZE/2));
+  float padding = 2.0f;
+  for (int i = 0; i < sizeOfMesh; i++)
+  {
+    for (int j = 0; j < sizeOfMesh; j++)
+    {
+      if(i < depth || i > sizeOfMesh - (depth + 1) || j < depth || j > sizeOfMesh - (depth + 1))
+      {
+        iceBricksOutline[numOfIce] = drawRectangle(x + (float)(i * OBSTACLE_ICE_SIZE), y + (float)(j * OBSTACLE_ICE_SIZE), 0.0f, OBSTACLE_ICE_SIZE/2, OBSTACLE_ICE_SIZE/2, 0.65f, 0.94f, 0.95f, false);
+        iceBricks[numOfIce++] = drawRectangle(x + (float)(i * OBSTACLE_ICE_SIZE), y + (float)(j * OBSTACLE_ICE_SIZE), 0.0f, (OBSTACLE_ICE_SIZE/2) - padding, (OBSTACLE_ICE_SIZE/2) - padding, 0.65f, 0.94f, 0.95f, true);
+      }
+    }
+  }
+}
+
 
 float camera_rotation_angle = 90;
 float rectangle_rotation = 0;
@@ -588,9 +645,10 @@ void draw ()
 
   draw3DObject(ground);
 
+  canon_tunnel_angle += canon_tunnel_rotation;
   Matrices.model = glm::mat4(1.0f);
   glm::mat4 translateCanon = glm::translate (glm::vec3(CANON_WHEEL_CENTERX, CANON_WHEEL_CENTERY, 0));        // glTranslatef
-  glm::mat4 rotateCanon = glm::rotate(45.0f, glm::vec3(0, 0, 1));
+  glm::mat4 rotateCanon = glm::rotate(canon_tunnel_angle, glm::vec3(0, 0, 1));
   Matrices.model *= translateCanon * rotateCanon;
   translateCanon = glm::translate (glm::vec3(-1*CANON_WHEEL_CENTERX, -1*CANON_WHEEL_CENTERY, 0));        // glTranslatef
   rotateCanon = glm::rotate(0.0f, glm::vec3(0, 0, 1));
@@ -600,6 +658,21 @@ void draw ()
 
   draw3DObject(canonTunnel);
   draw3DObject(canonWheel);
+
+  Matrices.model = glm::mat4(1.0f);
+  glm::mat4 translateIce = glm::translate (glm::vec3(0, 0, 0));        // glTranslatef
+  glm::mat4 rotateIce = glm::rotate(0.0f, glm::vec3(0, 0, 1));
+  Matrices.model *= translateIce* rotateIce; 
+  MVP = VP * Matrices.model;
+  glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
+
+  for (int i = 0; i < numOfIce; i++)
+  {
+    draw3DObject(iceBricksOutline[i]);
+    draw3DObject(iceBricks[i]);
+  }
+
+
   // Increment angles 
   float increments = 1;
 
@@ -667,6 +740,8 @@ void initGL (GLFWwindow* window, int width, int height)
 	createBird(10.0f, 1, 0, 0, 1, 0);
   createGround();
   createCanon();
+  createIcebricksSquare(3, 1, OBSTACLE_STARTSX);
+  // createPiggy();
 	// Create and compile our GLSL program from the shaders
 	programID = LoadShaders( "Sample_GL.vert", "Sample_GL.frag" );
 	// Get a handle for our "MVP" uniform
