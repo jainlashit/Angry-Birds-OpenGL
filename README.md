@@ -9,11 +9,6 @@ Linux/Windows/ Mac OSX - Dependencies: (Recommended)
  GLAD
  GLM
 
-Linux - Dependencies: (alternative)
- FreeGLUT
- GLEW
- GLM
-
 ----------------------------------------------------------------
 INSTALLATION
 ----------------------------------------------------------------
@@ -27,6 +22,8 @@ GLFW:
    $ cd build
    $ cmake -DBUILD_SHARED_LIBS=ON ..
    $ make && sudo make install
+
+Follow the Step-2 of the explanation [here](https://stackoverflow.com/questions/17768008/how-to-build-install-glfw-3-and-use-it-in-a-linux-project)
 
 GLAD:
  - Go to http://glad.dav1d.de

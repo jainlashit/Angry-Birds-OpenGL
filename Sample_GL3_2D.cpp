@@ -684,7 +684,8 @@ void draw ()
 
   draw3DObject(ground);
 
-  canon_tunnel_angle += canon_tunnel_rotation;
+  if(canon_tunnel_angle + canon_tunnel_rotation >= 0 and canon_tunnel_angle + canon_tunnel_rotation < (M_PI/3))
+    canon_tunnel_angle += canon_tunnel_rotation;
   Matrices.model = glm::mat4(1.0f);
   glm::mat4 translateCanon = glm::translate (glm::vec3(CANON_WHEEL_CENTERX, CANON_WHEEL_CENTERY, 0));        // glTranslatef
   glm::mat4 rotateCanon = glm::rotate(canon_tunnel_angle, glm::vec3(0, 0, 1));
