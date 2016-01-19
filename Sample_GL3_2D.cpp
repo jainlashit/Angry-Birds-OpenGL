@@ -15,7 +15,7 @@
 #define SCREEN_HEIGHT 480
 #define SCREEN_WIDTH 1280  
 #define GROUND_HEIGHT 50
-#define BIRD_MARGIN 30
+#define BIRD_MARGIN 5.0f
 #define CANON_WHEEL_CENTERX 120
 #define CANON_WHEEL_CENTERY 70
 #define CANON_TUNNEL_LENGTH 70
@@ -46,8 +46,18 @@ struct GLMatrices {
 
 GLuint programID;
 
-int numOfIce = 0, numOfPiggy = 0, numOfBirds = 0, birdStatus[10] = {0}, birdDisplaceX[10] = {0}, birdDisplaceY[10] = {0};
-VAO *triangle, *rectangle, *bird[10], *ground, *birdFace[10], *birdBeak[10], *birdEyeIris[10], *birdEyeSclera[10], *canonWheel, *canonTunnel, *iceBricks[30], *iceBricksOutline[30], *piggyFace[30], *piggyLeftEyeIris[10], *piggyRightEyeIris[10], *piggyLeftEyeSclera[10], *piggyRightEyeSclera[10], *piggyNose[10];
+int numOfIce = 0, numOfPiggy = 0, numOfBirds = 0;
+int birdStatus[10] = {0}, birdType[10]; 
+float birdDisplaceX[10] , birdDisplaceY[10], birdSize[10];
+int iceBroken[30] = {0};
+float iceBoundingCircle[30], iceX[30], iceY[30];
+int piggyHurt[10] = {0};
+float piggyRadius[10] = {0}, piggyX[10], piggyY[10];
+VAO *ground;
+VAO *bird[10], *birdFace[10], *birdBeak[10], *birdEyeIris[10], *birdEyeSclera[10];
+VAO *canonWheel, *canonTunnel;
+VAO *iceBricks[30], *iceBricksOutline[30];
+VAO *piggyFace[30], *piggyLeftEyeIris[10], *piggyRightEyeIris[10], *piggyLeftEyeSclera[10], *piggyRightEyeSclera[10], *piggyNose[10];
 
 /* Function to load Shaders - Use it as it is */
 GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path) {
@@ -131,16 +141,40 @@ static void error_callback(int error, const char* description)
     fprintf(stderr, "Error: %s\n", description);
 }
 
-float phy_ux, phy_uy, phy_time = 0.0f;
+float phy_ux, phy_uy, phy_time = 0.0f, phy_x, phy_y, phy_angle;
 bool phy_start = false;
+
+bool collisionDetect(float x, float y, float radius)
+{
+  if((phy_x > (x - radius))  && (phy_x < (x + radius)) && (phy_y > (y - radius))  && (phy_y < (y + radius)))
+    return true;
+}
+
+void collisionEngine(int index)
+{
+  for (int i = 0; i < numOfPiggy; ++i)
+  {
+    if(collisionDetect(piggyX[i], piggyY[i], piggyRadius[i]))
+      piggyHurt[i] = 1;
+  }
+  for (int i = 0; i < numOfIce; ++i)
+  {
+    if(collisionDetect(iceX[i], iceY[i], iceBoundingCircle[i]))
+      iceBroken[i] = 1; 
+  }
+}
 
 void physics_engine(int index)
 {
   if(phy_start)
   {
+    int temp = (float)GROUND_HEIGHT + birdSize[index];
+    phy_x = 60.0f + (CANON_TUNNEL_LENGTH * cos(phy_angle)) + birdDisplaceX[index] + temp;
+    phy_y = 20.0f + (CANON_TUNNEL_LENGTH * sin(phy_angle)) + birdDisplaceY[index] + temp;
     phy_time += 0.1;
     birdDisplaceX[index] = phy_ux * phy_time;
     birdDisplaceY[index] = (phy_uy * phy_time) - ((EARTH_GRAVITY * phy_time * phy_time)/2);
+    collisionEngine(index);
   }
   else
     phy_ux = phy_uy = phy_time = 0.0f;
@@ -234,8 +268,6 @@ void draw3DObject (struct VAO* vao)
  * Customizable functions *
  **************************/
 
-float triangle_rot_dir = 1;
-float rectangle_rot_dir = 1;
 float canon_tunnel_rotation = 0;
 float canon_tunnel_angle = 0;
 bool triangle_rot_status = true;
@@ -271,6 +303,7 @@ void keyboard (GLFWwindow* window, int key, int scancode, int action, int mods)
                 if(!phy_start)
                 {
                   phy_start = true;
+                  phy_angle = canon_tunnel_angle;
                   phy_ux = CANON_MOMENTUM * cos(canon_tunnel_angle);
                   phy_uy = CANON_MOMENTUM * sin(canon_tunnel_angle);
                 }
@@ -381,7 +414,6 @@ VAO* drawCircle(GLfloat x, GLfloat y, GLfloat z, GLfloat radius, GLint numberOfS
 
 VAO* drawRectangle(GLfloat x, GLfloat y, GLfloat z, GLfloat halfLength, GLfloat halfWidth, GLfloat red, GLfloat blue, GLfloat green, bool fill_mode) 
 {
-  cout << x << " " << y << " " << halfLength << " " << halfWidth << endl;
 
     // GL3 accepts only Triangles. Quads are not supported
   GLfloat vertex_buffer_data [] = {
@@ -427,59 +459,7 @@ VAO* drawBeak(GLfloat x, GLfloat y, GLfloat z, GLfloat size)
   return create3DObject(GL_TRIANGLES, 3, vertex_buffer_data, color_buffer_data, GL_FILL);
 }
 
-
-
 //Pupil and Sclera are the colored part in eye, I assume that bird has no  pupil
-
-// Creates the triangle object used in this sample code
-void createTriangle ()
-{
-  /* ONLY vertices between the bounds specified in glm::ortho will be visible on screen */
-
-  /* Define vertex array as used in glBegin (GL_TRIANGLES) */
-  static const GLfloat vertex_buffer_data [] = {
-    0, 1,0, // vertex 0
-    -1,-1,0, // vertex 1
-    1,-1,0, // vertex 2
-  };
-
-  static const GLfloat color_buffer_data [] = {
-    1,0,0, // color 0
-    0,1,0, // color 1
-    0,0,1, // color 2
-  };
-
-  // create3DObject creates and returns a handle to a VAO that can be used later
-  triangle = create3DObject(GL_TRIANGLES, 3, vertex_buffer_data, color_buffer_data, GL_LINE);
-}
-
-// Creates the rectangle object used in this sample code
-void createRectangle ()
-{
-  // GL3 accepts only Triangles. Quads are not supported
-  static const GLfloat vertex_buffer_data [] = {
-    -1.2,-1,0, // vertex 1
-    1.2,-1,0, // vertex 2
-    1.2, 1,0, // vertex 3
-
-    1.2, 1,0, // vertex 3
-    -1.2, 1,0, // vertex 4
-    -1.2,-1,0  // vertex 1
-  };
-
-  static const GLfloat color_buffer_data [] = {
-    1,0,0, // color 1
-    0,0,1, // color 2
-    0,1,0, // color 3
-
-    0,1,0, // color 3
-    0.3,0.3,0.3, // color 4
-    1,0,0  // color 1
-  };
-
-  // create3DObject creates and returns a handle to a VAO that can be used later
-  rectangle = create3DObject(GL_TRIANGLES, 6, vertex_buffer_data, color_buffer_data, GL_FILL);
-}
 
 void createBirdEye(GLfloat radius, GLfloat x, GLfloat y, GLfloat z, int order)
 {
@@ -507,6 +487,8 @@ void createBird(GLfloat size, GLfloat red, GLfloat blue, GLfloat green, int orde
   birdFace[order] = drawCircle(x, y, z, radius, numberOfSides, red, blue, green);
   birdBeak[order] = drawBeak(x, y, z, size);
   createBirdEye(size, x, y, z, order);
+  birdSize[order] = size;
+  birdType[order] = type;
   numOfBirds++;
 }
 
@@ -579,6 +561,10 @@ void createPiggy(GLfloat xPiggy, GLfloat yPiggy)
   piggyLeftEyeIris[numOfPiggy]  = drawCircle(xPiggy - eyeIrisShiftX, yPiggy - ((1.5) * padding) + eyeIrisShiftY, 0, (OBSTACLE_ICE_SIZE/10) , 360, 1.0, 1.0, 1.0);
   piggyRightEyeIris[numOfPiggy] = drawCircle(xPiggy + eyeIrisShiftX, yPiggy - ((1.5) * padding) + eyeIrisShiftY, 0, (OBSTACLE_ICE_SIZE/10) , 360, 1.0, 1.0, 1.0);
   piggyNose[numOfPiggy] = drawCircle(xPiggy, yPiggy - ((1.8) * padding), 0, (OBSTACLE_ICE_SIZE/9) , 360, 0.0, 0.7, 0.0);
+  
+  piggyRadius[numOfPiggy] = (OBSTACLE_ICE_SIZE/2) - padding;
+  piggyX[numOfPiggy] = xPiggy; 
+  piggyY[numOfPiggy] = yPiggy - padding;
   piggyFace[numOfPiggy++] = drawCircle(xPiggy, yPiggy - padding, 0, (OBSTACLE_ICE_SIZE/2) - padding, 360, 0.0, 1.0, 0.0);
 
 }
@@ -596,8 +582,12 @@ void createObstacle(GLint sizeOfMesh, GLfloat depth, GLfloat startX)
     {
       if(i < depth || i > sizeOfMesh - (depth + 1) || j < depth || j > sizeOfMesh - (depth + 1))
       {
-        iceBricksOutline[numOfIce] = drawRectangle(x + (float)(i * OBSTACLE_ICE_SIZE), y + (float)(j * OBSTACLE_ICE_SIZE), 0.0f, OBSTACLE_ICE_SIZE/2, OBSTACLE_ICE_SIZE/2, 0.65f, 0.94f, 0.95f, false);
-        iceBricks[numOfIce++] = drawRectangle(x + (float)(i * OBSTACLE_ICE_SIZE), y + (float)(j * OBSTACLE_ICE_SIZE), 0.0f, (OBSTACLE_ICE_SIZE/2) - padding, (OBSTACLE_ICE_SIZE/2) - padding, 0.65f, 0.94f, 0.95f, true);
+        iceBoundingCircle[numOfIce] =  (OBSTACLE_ICE_SIZE / 2) - padding;
+        iceX[numOfIce] = x + (float)(i * OBSTACLE_ICE_SIZE);
+        iceY[numOfIce] = y + (float)(j * OBSTACLE_ICE_SIZE);
+        iceBricksOutline[numOfIce] = drawRectangle(iceX[numOfIce], iceY[numOfIce], 0.0f, iceBoundingCircle[numOfIce] + padding, iceBoundingCircle[numOfIce] + padding, 0.65f, 0.94f, 0.95f, false);
+        iceBricks[numOfIce] = drawRectangle(iceX[numOfIce], iceY[numOfIce], 0.0f, iceBoundingCircle[numOfIce], iceBoundingCircle[numOfIce], 0.65f, 0.94f, 0.95f, true);
+        numOfIce++;
       }
       else
         createPiggy(x + (float)(i * OBSTACLE_ICE_SIZE), y + (float)(j * OBSTACLE_ICE_SIZE));
@@ -607,9 +597,6 @@ void createObstacle(GLint sizeOfMesh, GLfloat depth, GLfloat startX)
 
 
 float camera_rotation_angle = 90;
-float rectangle_rotation = 0;
-float triangle_rotation = 0;
-
 /* Render the scene with openGL */
 /* Edit this function according to your assignment */
 
@@ -647,39 +634,11 @@ void draw ()
   glm::mat4 MVP;	// MVP = Projection * View * Model
 
   // Load identity to model matrix
-  Matrices.model = glm::mat4(1.0f);
-
-  /* Render your scene */
-
-  glm::mat4 translateTriangle = glm::translate (glm::vec3(-2.0f, 0.0f, 0.0f)); // glTranslatef
-  glm::mat4 rotateTriangle = glm::rotate((float)(triangle_rotation*M_PI/180.0f), glm::vec3(0,0,1));  // rotate about vector (1,0,0)
-  glm::mat4 triangleTransform = translateTriangle * rotateTriangle;
-  Matrices.model *= triangleTransform; 
-  MVP = VP * Matrices.model; // MVP = p * V * M
-
-  //  Don't change unless you are sure!!
-  glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
-
-  // draw3DObject draws the VAO given to it using current MVP matrix
-  draw3DObject(triangle);
-
-  // Pop matrix to undo transformations till last push matrix instead of recomputing model matrix
-  // glPopMatrix ();
-  Matrices.model = glm::mat4(1.0f);
-
-  glm::mat4 translateRectangle = glm::translate (glm::vec3(2.0f, 0.0f, 0.0f));        // glTranslatef
-  glm::mat4 rotateRectangle = glm::rotate((float)(rectangle_rotation*M_PI/180.0f), glm::vec3(0,0,1)); // rotate about vector (-1,1,1)
-  Matrices.model *= (translateRectangle * rotateRectangle);
-  MVP = VP * Matrices.model;
-  glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
-
-  // draw3DObject draws the VAO given to it using current MVP matrix
-  draw3DObject(rectangle);
-  Matrices.model = glm::mat4(1.0f);
   for (int i = 0; i < numOfBirds; i++)
   {
     if(birdStatus[i] == 0)
     {  
+      Matrices.model = glm::mat4(1.0f);
       translateBird[i] = glm::translate (glm::vec3(0, 0, 0));        // glTranslatef
       rotateBird[i] = glm::rotate(0.0f, glm::vec3(0,0,1));
       Matrices.model *= translateBird[i] * rotateBird[i];
@@ -693,24 +652,27 @@ void draw ()
     }
     else if(birdStatus[i] == 1)
     {
-      physics_engine(i);
-      translateBird[i] = glm::translate (glm::vec3(60.0f + (CANON_TUNNEL_LENGTH * cos(canon_tunnel_angle)) + birdDisplaceX[i], 20.0f + (CANON_TUNNEL_LENGTH * sin(canon_tunnel_angle) + birdDisplaceY[i]), 0));        // glTranslatef
-      rotateBird[i] = glm::rotate(0.0f, glm::vec3(0,0,1));
-      Matrices.model *= translateBird[i] * rotateBird[i];
-      MVP = VP * Matrices.model;
-      glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
-      draw3DObject(birdBeak[i]);
-      draw3DObject(birdFace[i]);
-      draw3DObject(birdEyeIris[i]);
-      draw3DObject(birdEyeSclera[i]);
-      Matrices.model = glm::mat4(1.0f);
-    }
-    else
-    {
-      Matrices.model = glm::mat4(1.0f);
-      //after the bird is dead
-      //TODO write code to move next bird in the waiting queue
-      //TODO change next's displaceX and displaceY also 
+      if((20.0f + (CANON_TUNNEL_LENGTH * sin(canon_tunnel_angle) + birdDisplaceY[i])) <= 0)
+      {
+        phy_start = false;
+        birdStatus[i + 1] = 1;
+        birdStatus[i] = 2;
+      }
+      else
+      {
+        physics_engine(i);
+        Matrices.model = glm::mat4(1.0f);
+        translateBird[i] = glm::translate (glm::vec3(60.0f + (CANON_TUNNEL_LENGTH * cos(canon_tunnel_angle)) + birdDisplaceX[i], 20.0f + (CANON_TUNNEL_LENGTH * sin(canon_tunnel_angle) + birdDisplaceY[i]), 0));        // glTranslatef
+        rotateBird[i] = glm::rotate(0.0f, glm::vec3(0,0,1));
+        Matrices.model *= translateBird[i] * rotateBird[i];
+        MVP = VP * Matrices.model;
+        glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
+        draw3DObject(birdBeak[i]);
+        draw3DObject(birdFace[i]);
+        draw3DObject(birdEyeIris[i]);
+        draw3DObject(birdEyeSclera[i]);
+        Matrices.model = glm::mat4(1.0f);
+      }
     }
   }
 
@@ -736,42 +698,40 @@ void draw ()
   draw3DObject(canonTunnel);
   draw3DObject(canonWheel);
 
-  Matrices.model = glm::mat4(1.0f);
-  glm::mat4 translateIce = glm::translate (glm::vec3(0, 0, 0));        // glTranslatef
-  glm::mat4 rotateIce = glm::rotate(0.0f, glm::vec3(0, 0, 1));
-  Matrices.model *= translateIce* rotateIce; 
-  MVP = VP * Matrices.model;
-  glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
-
   for (int i = 0; i < numOfIce; i++)
   {
-    draw3DObject(iceBricksOutline[i]);
-    draw3DObject(iceBricks[i]);
+    if(!iceBroken[i])
+    {
+      Matrices.model = glm::mat4(1.0f);
+      glm::mat4 translateIce = glm::translate (glm::vec3(0, 0, 0));        // glTranslatef
+      glm::mat4 rotateIce = glm::rotate(0.0f, glm::vec3(0, 0, 1));
+      Matrices.model *= translateIce* rotateIce; 
+      MVP = VP * Matrices.model;
+      glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
+      draw3DObject(iceBricksOutline[i]);
+      draw3DObject(iceBricks[i]);
+    }
   }
-
-  Matrices.model = glm::mat4(1.0f);
-  glm::mat4 translatePiggy = glm::translate (glm::vec3(0, 0, 0));        // glTranslatef
-  glm::mat4 rotatePiggy = glm::rotate(0.0f, glm::vec3(0, 0, 1));
-  Matrices.model *= translatePiggy* rotatePiggy; 
-  MVP = VP * Matrices.model;
-  glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
 
   for (int i = 0; i < numOfPiggy; i++)
   {
-    draw3DObject(piggyFace[i]);
-    draw3DObject(piggyNose[i]);
-    draw3DObject(piggyLeftEyeIris[i]);
-    draw3DObject(piggyRightEyeIris[i]);
-    draw3DObject(piggyLeftEyeSclera[i]);
-    draw3DObject(piggyRightEyeSclera[i]);
+    if(!piggyHurt[i])
+    {
+      Matrices.model = glm::mat4(1.0f);
+      glm::mat4 translatePiggy = glm::translate (glm::vec3(0, 0, 0));        // glTranslatef
+      glm::mat4 rotatePiggy = glm::rotate(0.0f, glm::vec3(0, 0, 1));
+      Matrices.model *= translatePiggy* rotatePiggy; 
+      MVP = VP * Matrices.model;
+      glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
+      draw3DObject(piggyFace[i]);
+      draw3DObject(piggyNose[i]);
+      draw3DObject(piggyLeftEyeIris[i]);
+      draw3DObject(piggyRightEyeIris[i]);
+      draw3DObject(piggyLeftEyeSclera[i]);
+      draw3DObject(piggyRightEyeSclera[i]);
+    }
   }
 
-  // Increment angles 
-  float increments = 1;
-
-  //camera_rotation_angle++; // Simulating camera rotation
-  triangle_rotation = triangle_rotation + increments*triangle_rot_dir*triangle_rot_status;
-  rectangle_rotation = rectangle_rotation + increments*rectangle_rot_dir*rectangle_rot_status;
 }
 
 /* Initialise glfw window, I/O callbacks and the renderer to use */
@@ -828,9 +788,9 @@ void initGL (GLFWwindow* window, int width, int height)
 {
     /* Objects should be created before any other gl function and shaders */
 	// Create the models
-	createTriangle (); // Generate the VAO, VBOs, vertices data & copy into the array buffer
-	createRectangle ();
+  // Generate the VAO, VBOs, vertices data & copy into the array buffer
 	createBird(10.0f, 1, 0, 0, 0, 1);
+  createBird(15.0f, 0, 0, 0, 1, 2);
   createGround();
   createCanon();
   createObstacle(3, 1, OBSTACLE_STARTSX);
