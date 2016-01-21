@@ -1,28 +1,5 @@
-#include <iostream>
-#include <cmath>
-#include <fstream>
-#include <vector>
-
-#include <glad/glad.h>
-#include <GLFW/glfw3.h>
-#include <GL/gl.h>
-
-#define GLM_FORCE_RADIANS
-#include <glm/glm.hpp>
-#include <glm/gtx/transform.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-
-#define SCREEN_HEIGHT 480
-#define SCREEN_WIDTH 1280  
-#define GROUND_HEIGHT 50
-#define BIRD_MARGIN 5.0f
-#define CANON_WHEEL_CENTERX 120
-#define CANON_WHEEL_CENTERY 70
-#define CANON_TUNNEL_LENGTH 70
-#define OBSTACLE_STARTSX 800.0f
-#define OBSTACLE_ICE_SIZE 50.0f
-#define CANON_MOMENTUM 30.0f
-#define EARTH_GRAVITY 1.0f
+#include "header.h"
+#include "constant.h"
 
 using namespace std;
 
@@ -46,6 +23,8 @@ struct GLMatrices {
 
 GLuint programID;
 
+
+
 int numOfIce = 0, numOfPiggy = 0, numOfBirds = 0;
 int birdStatus[10] = {0}, birdType[10]; 
 float birdDisplaceX[10] , birdDisplaceY[10], birdSize[10];
@@ -53,11 +32,18 @@ int iceBroken[30] = {0};
 float iceBoundingCircle[30], iceX[30], iceY[30];
 int piggyHurt[10] = {0};
 float piggyRadius[10] = {0}, piggyX[10], piggyY[10];
+float canonMomentum = 40.0f;
 VAO *ground;
 VAO *bird[10], *birdFace[10], *birdBeak[10], *birdEyeIris[10], *birdEyeSclera[10];
-VAO *canonWheel, *canonTunnel;
+VAO *canonWheel, *canonTunnel, *PowerPanelFill, *PowerPanelOut;
 VAO *iceBricks[30], *iceBricksOutline[30];
 VAO *piggyFace[30], *piggyLeftEyeIris[10], *piggyRightEyeIris[10], *piggyLeftEyeSclera[10], *piggyRightEyeSclera[10], *piggyNose[10];
+
+void keyboard (GLFWwindow* window, int key, int scancode, int action, int mods);
+void keyboardChar (GLFWwindow* window, unsigned int key);
+void mouseButton (GLFWwindow* window, int button, int action, int mods);
+void reshapeWindow (GLFWwindow* window, int width, int height);
+
 
 /* Function to load Shaders - Use it as it is */
 GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path) {
@@ -270,111 +256,7 @@ void draw3DObject (struct VAO* vao)
 
 float canon_tunnel_rotation = 0;
 float canon_tunnel_angle = 0;
-bool triangle_rot_status = true;
-bool rectangle_rot_status = true;
 
-/* Executed when a regular key is pressed/released/held-down */
-/* Prefered for Keyboard events */
-void keyboard (GLFWwindow* window, int key, int scancode, int action, int mods)
-{
-     // Function is called first on GLFW_PRESS.
-
-    if (action == GLFW_RELEASE) {
-        switch (key) {
-            case GLFW_KEY_C:
-                rectangle_rot_status = !rectangle_rot_status;
-                break;
-            case GLFW_KEY_P:
-                triangle_rot_status = !triangle_rot_status;
-                break;
-            case GLFW_KEY_X:
-                // do something ..
-                break;
-            default:
-                break;
-        }
-    }
-    else if (action == GLFW_PRESS) {
-        switch (key) {
-            case GLFW_KEY_ESCAPE:
-                quit(window);
-                break;
-            case GLFW_KEY_SPACE:
-                if(!phy_start)
-                {
-                  phy_start = true;
-                  phy_angle = canon_tunnel_angle;
-                  phy_ux = CANON_MOMENTUM * cos(canon_tunnel_angle);
-                  phy_uy = CANON_MOMENTUM * sin(canon_tunnel_angle);
-                }
-                break;
-            default:
-                break;
-        }
-    }
-}
-
-
-/* Executed for character input (like in text boxes) */
-void keyboardChar (GLFWwindow* window, unsigned int key)
-{
-	switch (key) {
-		case 'Q':
-		case 'q':
-            quit(window);
-            break;
-		default:
-			break;
-	}
-}
-
-/* Executed when a mouse button is pressed/released */
-void mouseButton (GLFWwindow* window, int button, int action, int mods)
-{
-    switch (button) {
-        case GLFW_MOUSE_BUTTON_LEFT:
-            if (action == GLFW_RELEASE)
-                canon_tunnel_rotation = 0.0f;
-            else if(action == GLFW_PRESS)
-              canon_tunnel_rotation = 0.01f;
-            break;
-        case GLFW_MOUSE_BUTTON_RIGHT:
-            if (action == GLFW_RELEASE)
-                canon_tunnel_rotation = 0.0f;
-            else
-              canon_tunnel_rotation = -0.01f;
-            break;
-        default:
-            break;
-    }
-}
-
-
-/* Executed when window is resized to 'width' and 'height' */
-/* Modify the bounds of the screen here in glm::ortho or Field of View in glm::Perspective */
-void reshapeWindow (GLFWwindow* window, int width, int height)
-{
-    int fbwidth=width, fbheight=height;
-    /* With Retina display on Mac OS X, GLFW's FramebufferSize
-     is different from WindowSize */
-    glfwGetFramebufferSize(window, &fbwidth, &fbheight);
-
-	GLfloat fov = 90.0f;
-
-	// sets the viewport of openGL renderer
-	glViewport (0, 0, (GLsizei) fbwidth, (GLsizei) fbheight);
-
-	// set the projection matrix as perspective
-	/* glMatrixMode (GL_PROJECTION);
-	   glLoadIdentity ();
-	   gluPerspective (fov, (GLfloat) fbwidth / (GLfloat) fbheight, 0.1, 500.0); */
-	// Store the projection matrix in a variable for future use
-    // Perspective projection for 3D views
-    // Matrices.projection = glm::perspective (fov, (GLfloat) fbwidth / (GLfloat) fbheight, 0.1f, 500.0f);
-
-    // Ortho projection for 2D views
-    Matrices.projection = glm::ortho(0.0f, (float)(SCREEN_WIDTH), 0.0f, (float)SCREEN_HEIGHT, 0.0f, 500.0f);
-}
 
 VAO* drawCircle(GLfloat x, GLfloat y, GLfloat z, GLfloat radius, GLint numberOfSides, GLfloat red, GLfloat blue, GLfloat green)
 {
@@ -492,6 +374,42 @@ void createBird(GLfloat size, GLfloat red, GLfloat blue, GLfloat green, int orde
   numOfBirds++;
 }
 
+void createPowerPanel(int val)
+{
+  float temp = canonMomentum + val;
+  float padding = 5.0f;
+  float r = 1,g = 1, b =0;
+  if(temp >= CANON_MIN_MOM and temp <= CANON_MAX_MOM)
+    canonMomentum = temp;
+  float powerX = (canonMomentum - CANON_MIN_MOM) * (POWER_PANEL_HALF_LENGTH * 2)/ (CANON_MAX_MOM - CANON_MIN_MOM);
+
+  if(powerX >= POWER_PANEL_HALF_LENGTH/2 and powerX < POWER_PANEL_HALF_LENGTH)
+    r = 0, g = 1;
+  else if(powerX >= POWER_PANEL_HALF_LENGTH and powerX < (3*POWER_PANEL_HALF_LENGTH)/2)
+    r = 1, g = 0.5;
+  else if(powerX > (3*POWER_PANEL_HALF_LENGTH)/2)
+    r = 1, g = 0;
+  GLfloat vertex_buffer_data[] = {
+    CANON_WHEEL_CENTERX - POWER_PANEL_HALF_LENGTH, GROUND_HEIGHT - padding, 0,
+    CANON_WHEEL_CENTERX - POWER_PANEL_HALF_LENGTH, GROUND_HEIGHT - padding - (POWER_PANEL_HALF_WIDTH * 2), 0,
+    CANON_WHEEL_CENTERX - POWER_PANEL_HALF_LENGTH + powerX, GROUND_HEIGHT - padding - (POWER_PANEL_HALF_WIDTH * 2), 0,
+    CANON_WHEEL_CENTERX - POWER_PANEL_HALF_LENGTH + powerX, GROUND_HEIGHT - padding - (POWER_PANEL_HALF_WIDTH * 2), 0,
+    CANON_WHEEL_CENTERX - POWER_PANEL_HALF_LENGTH + powerX, GROUND_HEIGHT - padding, 0,
+    CANON_WHEEL_CENTERX - POWER_PANEL_HALF_LENGTH, GROUND_HEIGHT - padding, 0,    
+  }; 
+
+  GLfloat color_buffer_data [] = {
+    r,g,b, // color 1
+    1,1,0, // color 2
+    r,g,b, // color 3
+
+    r,g,b, // color 3
+    r,g,b, // color 4
+    r,g,b  // color 1
+  };
+  PowerPanelFill = create3DObject(GL_TRIANGLES, 6, vertex_buffer_data, color_buffer_data, GL_FILL);
+  PowerPanelOut = drawRectangle(CANON_WHEEL_CENTERX, GROUND_HEIGHT - POWER_PANEL_HALF_WIDTH - padding, 0.0f, POWER_PANEL_HALF_WIDTH, POWER_PANEL_HALF_LENGTH, 0.5, 0.3, 0.3, true);
+}
 
 void createGround()
 {
@@ -515,6 +433,8 @@ void createGround()
     0.5, 0.18, 0.12, // color 4
     0.5, 0.18, 0.12  // color 1
   };
+
+  createPowerPanel(0);
 
   // create3DObject creates and returns a handle to a VAO that can be used later
   ground = create3DObject(GL_TRIANGLES, 6, vertex_buffer_data, color_buffer_data, GL_FILL); 
@@ -683,6 +603,8 @@ void draw ()
   glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
 
   draw3DObject(ground);
+  draw3DObject(PowerPanelOut);
+  draw3DObject(PowerPanelFill);
 
   if(canon_tunnel_angle + canon_tunnel_rotation >= 0 and canon_tunnel_angle + canon_tunnel_rotation < (M_PI/3))
     canon_tunnel_angle += canon_tunnel_rotation;
@@ -850,3 +772,114 @@ int main (int argc, char** argv)
     glfwTerminate();
     exit(EXIT_SUCCESS);
 }
+
+
+
+
+/* Executed when a regular key is pressed/released/held-down */
+/* Prefered for Keyboard events */
+void keyboard (GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+     // Function is called first on GLFW_PRESS.
+
+    if (action == GLFW_RELEASE) {
+        switch (key) {
+            case GLFW_KEY_C:
+                break;
+            case GLFW_KEY_P:
+                break;
+            case GLFW_KEY_X:
+                // do something ..
+                break;
+            default:
+                break;
+        }
+    }
+    else if (action == GLFW_PRESS) {
+        switch (key) {
+            case GLFW_KEY_ESCAPE:
+                quit(window);
+                break;
+            case GLFW_KEY_SPACE:
+                if(!phy_start)
+                {
+                  phy_start = true;
+                  phy_angle = canon_tunnel_angle;
+                  phy_ux = canonMomentum * cos(canon_tunnel_angle);
+                  phy_uy = canonMomentum * sin(canon_tunnel_angle);
+                }
+                break;
+            case GLFW_KEY_RIGHT:
+                createPowerPanel(5);
+                break;
+            case GLFW_KEY_LEFT:
+                createPowerPanel(-5);
+                break;
+            default:
+                break;
+        }
+    }
+}
+
+
+/* Executed for character input (like in text boxes) */
+void keyboardChar (GLFWwindow* window, unsigned int key)
+{
+  switch (key) {
+    case 'Q':
+    case 'q':
+            quit(window);
+            break;
+    default:
+      break;
+  }
+}
+
+/* Executed when a mouse button is pressed/released */
+void mouseButton (GLFWwindow* window, int button, int action, int mods)
+{
+    switch (button) {
+        case GLFW_MOUSE_BUTTON_LEFT:
+            if (action == GLFW_RELEASE)
+                canon_tunnel_rotation = 0.0f;
+            else if(action == GLFW_PRESS)
+              canon_tunnel_rotation = 0.01f;
+            break;
+        case GLFW_MOUSE_BUTTON_RIGHT:
+            if (action == GLFW_RELEASE)
+                canon_tunnel_rotation = 0.0f;
+            else
+              canon_tunnel_rotation = -0.01f;
+            break;
+        default:
+            break;
+    }
+}
+
+
+/* Executed when window is resized to 'width' and 'height' */
+/* Modify the bounds of the screen here in glm::ortho or Field of View in glm::Perspective */
+void reshapeWindow (GLFWwindow* window, int width, int height)
+{
+    int fbwidth=width, fbheight=height;
+    /* With Retina display on Mac OS X, GLFW's FramebufferSize
+     is different from WindowSize */
+    glfwGetFramebufferSize(window, &fbwidth, &fbheight);
+
+  GLfloat fov = 90.0f;
+
+  // sets the viewport of openGL renderer
+  glViewport (0, 0, (GLsizei) fbwidth, (GLsizei) fbheight);
+
+  // set the projection matrix as perspective
+  /* glMatrixMode (GL_PROJECTION);
+     glLoadIdentity ();
+     gluPerspective (fov, (GLfloat) fbwidth / (GLfloat) fbheight, 0.1, 500.0); */
+  // Store the projection matrix in a variable for future use
+    // Perspective projection for 3D views
+    // Matrices.projection = glm::perspective (fov, (GLfloat) fbwidth / (GLfloat) fbheight, 0.1f, 500.0f);
+
+    // Ortho projection for 2D views
+    Matrices.projection = glm::ortho(0.0f, (float)(SCREEN_WIDTH), 0.0f, (float)SCREEN_HEIGHT, 0.0f, 500.0f);
+}
+
