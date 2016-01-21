@@ -55,6 +55,6 @@ Use apt-get to install FreeGLUT, libglew, glm on Linux.
 
 ##Controls
 
-Left Arrow for decreasing the power and right for increasing the power
-Mouse Left and Right keys for rotating the canon
-Space Bar for launching the bird
+	-Left Arrow for decreasing the power and right for increasing the power
+	-Mouse Left and Right keys for rotating the canon
+	-Space Bar for launching the bird

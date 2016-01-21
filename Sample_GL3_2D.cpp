@@ -582,8 +582,16 @@ void draw ()
       {
         physics_engine(i);
         Matrices.model = glm::mat4(1.0f);
-        translateBird[i] = glm::translate (glm::vec3(60.0f + (CANON_TUNNEL_LENGTH * cos(canon_tunnel_angle)) + birdDisplaceX[i], 20.0f + (CANON_TUNNEL_LENGTH * sin(canon_tunnel_angle) + birdDisplaceY[i]), 0));        // glTranslatef
-        rotateBird[i] = glm::rotate(0.0f, glm::vec3(0,0,1));
+        if(!phy_start)
+        {
+          translateBird[i] = glm::translate (glm::vec3(60.0f + (CANON_TUNNEL_LENGTH * cos(canon_tunnel_angle)) + birdDisplaceX[i], 20.0f + (CANON_TUNNEL_LENGTH * sin(canon_tunnel_angle) + birdDisplaceY[i]), 0));        // glTranslatef
+          rotateBird[i] = glm::rotate(0.0f, glm::vec3(0,0,1));
+        }
+        else
+        {
+          translateBird[i] = glm::translate (glm::vec3(60.0f + (CANON_TUNNEL_LENGTH * cos(phy_angle)) + birdDisplaceX[i], 20.0f + (CANON_TUNNEL_LENGTH * sin(phy_angle) + birdDisplaceY[i]), 0));        // glTranslatef
+          rotateBird[i] = glm::rotate(0.0f, glm::vec3(0,0,1));
+        }
         Matrices.model *= translateBird[i] * rotateBird[i];
         MVP = VP * Matrices.model;
         glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
@@ -882,4 +890,3 @@ void reshapeWindow (GLFWwindow* window, int width, int height)
     // Ortho projection for 2D views
     Matrices.projection = glm::ortho(0.0f, (float)(SCREEN_WIDTH), 0.0f, (float)SCREEN_HEIGHT, 0.0f, 500.0f);
 }
-
