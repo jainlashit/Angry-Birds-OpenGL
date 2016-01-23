@@ -21,6 +21,15 @@ struct GLMatrices {
 	GLuint MatrixID;
 } Matrices;
 
+typedef struct Obstacle{
+  int index;
+  int x;
+  int y;
+  int replacing;
+  bool isPiggy;
+  bool toReplace;
+}Obstacle;
+
 GLuint programID;
 
 
@@ -29,10 +38,11 @@ int numOfIce = 0, numOfPiggy = 0, numOfBirds = 0;
 int birdStatus[10] = {0}, birdType[10]; 
 float birdDisplaceX[10] , birdDisplaceY[10], birdSize[10];
 int iceBroken[30] = {0};
-float iceBoundingCircle[30], iceX[30], iceY[30];
+float iceBoundingCircle[30], iceX[30], iceY[30], iceTranslate[10] = {0};
 int piggyHurt[10] = {0};
-float piggyRadius[10] = {0}, piggyX[10], piggyY[10];
-float canonMomentum = 40.0f;
+float piggyRadius[10] = {0}, piggyX[10], piggyY[10], piggyTranslate[10] = {0};
+float canonMomentum = 100.0f;
+Obstacle all[10][10];
 VAO *ground;
 VAO *bird[10], *birdFace[10], *birdBeak[10], *birdEyeIris[10], *birdEyeSclera[10];
 VAO *canonWheel, *canonTunnel, *PowerPanelFill, *PowerPanelOut;
@@ -43,6 +53,8 @@ void keyboard (GLFWwindow* window, int key, int scancode, int action, int mods);
 void keyboardChar (GLFWwindow* window, unsigned int key);
 void mouseButton (GLFWwindow* window, int button, int action, int mods);
 void reshapeWindow (GLFWwindow* window, int width, int height);
+
+
 
 
 /* Function to load Shaders - Use it as it is */
@@ -127,26 +139,109 @@ static void error_callback(int error, const char* description)
     fprintf(stderr, "Error: %s\n", description);
 }
 
-float phy_ux, phy_uy, phy_time = 0.0f, phy_x, phy_y, phy_angle;
+void makeFall(int x, int y)
+{
+  float loop = (float)all[x][y].replacing;
+  int index = all[x][y].index;
+  float translate = TIME_REFERENCE * EARTH_GRAVITY;
+  if(all[x][y].isPiggy)
+  {
+    if(piggyTranslate[index] + translate <= loop*OBSTACLE_ICE_SIZE)
+    {
+      piggyTranslate[index] += translate;
+      piggyY[index] -= translate;
+    }
+  }
+  else
+  {
+    if(iceTranslate[index] + translate <= loop*OBSTACLE_ICE_SIZE)
+    {
+      iceTranslate[index] += translate;
+      iceY[index] -= translate;
+    }
+  }
+}
+
+void checkFall()
+{
+  int num = sqrt(numOfPiggy + numOfIce);
+  for (int i = 0; i < num; i++)
+  {
+    for (int j = num - 1; j > 0; j--)
+    {
+      int temp = 0;
+      for (int k = j - 1; k >= 0; k--)
+      {
+        if(all[i][k].toReplace)
+        {
+          all[i][k].toReplace = false;
+          all[i][j].toReplace = true;
+          all[i][j].replacing ++;
+        }
+        else
+          break;
+      }
+      makeFall(i, j);
+    }
+  }
+}
+
+void setObstacleDead(int index, bool isPiggy)
+{
+  int num = sqrt(numOfPiggy + numOfIce);
+  for (int i = 0; i < num; i++)
+  {
+    for (int j = 0; j < num; j++)
+    {
+      if(all[i][j].index == index && (!(all[i][j].isPiggy ^ isPiggy)))
+      {
+        all[i][j].toReplace  = true;
+        all[i][j].replacing = 0;
+      }
+    }
+  }
+}
+
+
+float phy_ux, phy_uy, phy_time = 0.0f, phy_x[10], phy_y[10], phy_angle;
 bool phy_start = false;
 
-bool collisionDetect(float x, float y, float radius)
+bool collisionDetect(float x, float y, float radius, int index)
 {
-  if((phy_x > (x - radius))  && (phy_x < (x + radius)) && (phy_y > (y - radius))  && (phy_y < (y + radius)))
+  float bird[] = {phy_x[index], phy_y[index], 0.0f};
+  float obs[] = {x, y, 0.0f};
+  glm::vec3 a = glm::make_vec3(bird);
+  glm::vec3 b = glm::make_vec3(obs);
+  float distance = (float)glm::distance(a, b);
+  if((distance <= radius + birdSize[index]))
     return true;
+  else
+    return false;
 }
 
 void collisionEngine(int index)
 {
   for (int i = 0; i < numOfPiggy; ++i)
   {
-    if(collisionDetect(piggyX[i], piggyY[i], piggyRadius[i]))
-      piggyHurt[i] = 1;
+    if(collisionDetect(piggyX[i], piggyY[i], piggyRadius[i], index))
+    {
+      if(piggyHurt[i]!=1)
+      {
+        setObstacleDead(i, true);
+        piggyHurt[i] = 1;
+      }
+    }
   }
   for (int i = 0; i < numOfIce; ++i)
   {
-    if(collisionDetect(iceX[i], iceY[i], iceBoundingCircle[i]))
-      iceBroken[i] = 1; 
+    if(collisionDetect(iceX[i], iceY[i], iceBoundingCircle[i], index))
+    {
+      if(iceBroken[i]!=1)
+      {
+        setObstacleDead(i, false);
+        iceBroken[i] = 1;
+        } 
+    }
   }
 }
 
@@ -154,9 +249,9 @@ void physics_engine(int index)
 {
   if(phy_start)
   {
-    int temp = (float)GROUND_HEIGHT + birdSize[index];
-    phy_x = 60.0f + (CANON_TUNNEL_LENGTH * cos(phy_angle)) + birdDisplaceX[index] + temp;
-    phy_y = 20.0f + (CANON_TUNNEL_LENGTH * sin(phy_angle)) + birdDisplaceY[index] + temp;
+    float temp = (float)GROUND_HEIGHT + birdSize[index];
+    phy_x[index] = 60.0f + (CANON_TUNNEL_LENGTH * cos(phy_angle)) + birdDisplaceX[index] + temp;
+    phy_y[index] = 20.0f + (CANON_TUNNEL_LENGTH * sin(phy_angle)) + birdDisplaceY[index] + temp;
     phy_time += 0.1;
     birdDisplaceX[index] = phy_ux * phy_time;
     birdDisplaceY[index] = (phy_uy * phy_time) - ((EARTH_GRAVITY * phy_time * phy_time)/2);
@@ -502,15 +597,27 @@ void createObstacle(GLint sizeOfMesh, GLfloat depth, GLfloat startX)
     {
       if(i < depth || i > sizeOfMesh - (depth + 1) || j < depth || j > sizeOfMesh - (depth + 1))
       {
-        iceBoundingCircle[numOfIce] =  (OBSTACLE_ICE_SIZE / 2) - padding;
         iceX[numOfIce] = x + (float)(i * OBSTACLE_ICE_SIZE);
         iceY[numOfIce] = y + (float)(j * OBSTACLE_ICE_SIZE);
+        all[i][j].index = numOfIce;
+        all[i][j].x = iceX[numOfIce];
+        all[i][j].y = iceY[numOfIce];
+        all[i][j].isPiggy = false;
+        all[i][j].toReplace = false;
+        all[i][j].replacing = 0;
+        iceBoundingCircle[numOfIce] =  (OBSTACLE_ICE_SIZE / 2) - padding;
         iceBricksOutline[numOfIce] = drawRectangle(iceX[numOfIce], iceY[numOfIce], 0.0f, iceBoundingCircle[numOfIce] + padding, iceBoundingCircle[numOfIce] + padding, 0.65f, 0.94f, 0.95f, false);
         iceBricks[numOfIce] = drawRectangle(iceX[numOfIce], iceY[numOfIce], 0.0f, iceBoundingCircle[numOfIce], iceBoundingCircle[numOfIce], 0.65f, 0.94f, 0.95f, true);
         numOfIce++;
       }
       else
+      {
+        all[i][j].index = numOfPiggy;
+        all[i][j].isPiggy = true;
+        all[i][j].toReplace = false;
+        all[i][j].replacing = 0;
         createPiggy(x + (float)(i * OBSTACLE_ICE_SIZE), y + (float)(j * OBSTACLE_ICE_SIZE));
+      }
     }
   }
 }
@@ -589,7 +696,8 @@ void draw ()
         }
         else
         {
-          translateBird[i] = glm::translate (glm::vec3(60.0f + (CANON_TUNNEL_LENGTH * cos(phy_angle)) + birdDisplaceX[i], 20.0f + (CANON_TUNNEL_LENGTH * sin(phy_angle) + birdDisplaceY[i]), 0));        // glTranslatef
+          float temp = (float)GROUND_HEIGHT + birdSize[i];
+          translateBird[i] = glm::translate (glm::vec3(phy_x[i] - temp, phy_y[i] - temp, 0));        // glTranslatef
           rotateBird[i] = glm::rotate(0.0f, glm::vec3(0,0,1));
         }
         Matrices.model *= translateBird[i] * rotateBird[i];
@@ -602,8 +710,25 @@ void draw ()
         Matrices.model = glm::mat4(1.0f);
       }
     }
+    else
+    {
+        Matrices.model = glm::mat4(1.0f);
+        float temp = (float)GROUND_HEIGHT + birdSize[i];
+        translateBird[i] = glm::translate (glm::vec3(phy_x[i] - temp, phy_y[i] - temp, 0));        // glTranslatef
+        rotateBird[i] = glm::rotate(0.0f, glm::vec3(0,0,1));
+        Matrices.model *= translateBird[i] * rotateBird[i];
+        MVP = VP * Matrices.model;
+        glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
+        draw3DObject(birdBeak[i]);
+        draw3DObject(birdFace[i]);
+        draw3DObject(birdEyeIris[i]);
+        draw3DObject(birdEyeSclera[i]);
+    }
   }
 
+  checkFall();
+
+  Matrices.model = glm::mat4(1.0f);
   glm::mat4 translateGround = glm::translate (glm::vec3(0, 0, 0));        // glTranslatef
   glm::mat4 rotateGround = glm::rotate(0.0f, glm::vec3(0,0,1));
   Matrices.model *= translateGround * rotateGround;
@@ -634,7 +759,7 @@ void draw ()
     if(!iceBroken[i])
     {
       Matrices.model = glm::mat4(1.0f);
-      glm::mat4 translateIce = glm::translate (glm::vec3(0, 0, 0));        // glTranslatef
+      glm::mat4 translateIce = glm::translate (glm::vec3(0, -1*iceTranslate[i], 0));        // glTranslatef
       glm::mat4 rotateIce = glm::rotate(0.0f, glm::vec3(0, 0, 1));
       Matrices.model *= translateIce* rotateIce; 
       MVP = VP * Matrices.model;
@@ -649,7 +774,7 @@ void draw ()
     if(!piggyHurt[i])
     {
       Matrices.model = glm::mat4(1.0f);
-      glm::mat4 translatePiggy = glm::translate (glm::vec3(0, 0, 0));        // glTranslatef
+      glm::mat4 translatePiggy = glm::translate (glm::vec3(0, -1*piggyTranslate[i], 0));        // glTranslatef
       glm::mat4 rotatePiggy = glm::rotate(0.0f, glm::vec3(0, 0, 1));
       Matrices.model *= translatePiggy* rotatePiggy; 
       MVP = VP * Matrices.model;
@@ -746,6 +871,8 @@ void initGL (GLFWwindow* window, int width, int height)
     cout << "RENDERER: " << glGetString(GL_RENDERER) << endl;
     cout << "VERSION: " << glGetString(GL_VERSION) << endl;
     cout << "GLSL: " << glGetString(GL_SHADING_LANGUAGE_VERSION) << endl;
+    cout << "Number of Obstacles " <<  numOfPiggy + numOfIce << endl;
+
 }
 
 int main (int argc, char** argv)
