@@ -34,6 +34,8 @@ GLuint programID;
 
 
 
+float screen_height = SCREEN_HEIGHT;
+float screen_width = SCREEN_WIDTH;
 int numOfIce = 0, numOfPiggy = 0, numOfBirds = 0;
 int birdStatus[10] = {0}, birdType[10]; 
 float birdDisplaceX[10] , birdDisplaceY[10], birdSize[10];
@@ -511,17 +513,17 @@ void createPowerPanel(int val)
 void createGround()
 {
     // GL3 accepts only Triangles. Quads are not supported
-  static const GLfloat vertex_buffer_data [] = {
+  GLfloat vertex_buffer_data [] = {
     0,0,0, // vertex 1
-    SCREEN_WIDTH,0,0, // vertex 2
-    SCREEN_WIDTH, GROUND_HEIGHT,0, // vertex 3
+    screen_width,0,0, // vertex 2
+    screen_width, GROUND_HEIGHT,0, // vertex 3
 
-    SCREEN_WIDTH, GROUND_HEIGHT,0, // vertex 3
+    screen_width, GROUND_HEIGHT,0, // vertex 3
     0, GROUND_HEIGHT, 0, // vertex 4
     0,0,0  // vertex 1
   };
 
-  static const GLfloat color_buffer_data [] = {
+  GLfloat color_buffer_data [] = {
     0.5, 0.18, 0.12, // color 1
     0.5, 0.18, 0.12, // color 2
     0.5, 0.18, 0.12, // color 3
@@ -809,11 +811,12 @@ void draw ()
 
 }
 
+GLFWwindow* window; // window desciptor/handle
+
 /* Initialise glfw window, I/O callbacks and the renderer to use */
 /* Nothing to Edit here */
 GLFWwindow* initGLFW (int width, int height)
 {
-    GLFWwindow* window; // window desciptor/handle
 
     glfwSetErrorCallback(error_callback);
     if (!glfwInit()) {
@@ -891,16 +894,15 @@ void initGL (GLFWwindow* window, int width, int height)
     cout << "RENDERER: " << glGetString(GL_RENDERER) << endl;
     cout << "VERSION: " << glGetString(GL_VERSION) << endl;
     cout << "GLSL: " << glGetString(GL_SHADING_LANGUAGE_VERSION) << endl;
-    cout << "Number of Obstacles " <<  numOfPiggy + numOfIce << endl;
 
 }
 
 int main (int argc, char** argv)
 {
 
-  GLFWwindow* window = initGLFW(SCREEN_WIDTH, SCREEN_HEIGHT);
+  GLFWwindow* window = initGLFW(screen_width, screen_height);
 
-	initGL (window, SCREEN_WIDTH, SCREEN_HEIGHT);
+	initGL (window, screen_width, screen_height);
 
   double last_update_time = glfwGetTime(), current_time;
 
@@ -970,6 +972,18 @@ void keyboard (GLFWwindow* window, int key, int scancode, int action, int mods)
             case GLFW_KEY_LEFT:
                 createPowerPanel(-5);
                 break;
+            case GLFW_KEY_KP_ADD:
+                screen_height *= ZOOM_FRACTION;
+                screen_width *= ZOOM_FRACTION;
+                reshapeWindow(window, screen_height, screen_width);
+                createGround();
+                break;
+            case GLFW_KEY_KP_SUBTRACT:
+                screen_height /= ZOOM_FRACTION;
+                screen_width /= ZOOM_FRACTION;
+                reshapeWindow(window, screen_height, screen_width);
+                createGround();
+                break;
             default:
                 break;
         }
@@ -1035,5 +1049,5 @@ void reshapeWindow (GLFWwindow* window, int width, int height)
     // Matrices.projection = glm::perspective (fov, (GLfloat) fbwidth / (GLfloat) fbheight, 0.1f, 500.0f);
 
     // Ortho projection for 2D views
-    Matrices.projection = glm::ortho(0.0f, (float)(SCREEN_WIDTH), 0.0f, (float)SCREEN_HEIGHT, 0.0f, 500.0f);
+    Matrices.projection = glm::ortho(0.0f, (float)(screen_width), 0.0f, (float)screen_height, 0.0f, 500.0f);
 }
