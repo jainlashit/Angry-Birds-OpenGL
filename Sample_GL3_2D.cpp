@@ -203,27 +203,28 @@ void setObstacleDead(int index, bool isPiggy)
 }
 
 
-float phy_ux, phy_uy, phy_time = 0.0f, phy_x[10], phy_y[10], phy_angle;
+float phy_ux, phy_uy, phy_vy, phy_time = 0.0f, phy_x[10], phy_y[10], phy_angle, bird_storeX[10] = {0}, bird_storeY[10] = {0};
+int phy_index;
 bool phy_start = false;
 
-bool collisionDetect(float x, float y, float radius, int index)
+bool collisionDetect(float x, float y, float radius)
 {
-  float bird[] = {phy_x[index], phy_y[index], 0.0f};
+  float bird[] = {phy_x[phy_index], phy_y[phy_index], 0.0f};
   float obs[] = {x, y, 0.0f};
   glm::vec3 a = glm::make_vec3(bird);
   glm::vec3 b = glm::make_vec3(obs);
   float distance = (float)glm::distance(a, b);
-  if((distance <= radius + birdSize[index]))
+  if((distance <= radius + birdSize[phy_index]))
     return true;
   else
     return false;
 }
 
-void collisionEngine(int index)
+void collisionEngine()
 {
   for (int i = 0; i < numOfPiggy; ++i)
   {
-    if(collisionDetect(piggyX[i], piggyY[i], piggyRadius[i], index))
+    if(collisionDetect(piggyX[i], piggyY[i], piggyRadius[i]))
     {
       if(piggyHurt[i]!=1)
       {
@@ -234,7 +235,7 @@ void collisionEngine(int index)
   }
   for (int i = 0; i < numOfIce; ++i)
   {
-    if(collisionDetect(iceX[i], iceY[i], iceBoundingCircle[i], index))
+    if(collisionDetect(iceX[i], iceY[i], iceBoundingCircle[i]))
     {
       if(iceBroken[i]!=1)
       {
@@ -245,17 +246,18 @@ void collisionEngine(int index)
   }
 }
 
-void physics_engine(int index)
+void physics_engine()
 {
   if(phy_start)
   {
-    float temp = (float)GROUND_HEIGHT + birdSize[index];
-    phy_x[index] = 60.0f + (CANON_TUNNEL_LENGTH * cos(phy_angle)) + birdDisplaceX[index] + temp;
-    phy_y[index] = 20.0f + (CANON_TUNNEL_LENGTH * sin(phy_angle)) + birdDisplaceY[index] + temp;
+    float temp = (float)GROUND_HEIGHT + birdSize[phy_index];
+    phy_x[phy_index] = 60.0f + (CANON_TUNNEL_LENGTH * cos(phy_angle)) + birdDisplaceX[phy_index] + temp;
+    phy_y[phy_index] = 20.0f + (CANON_TUNNEL_LENGTH * sin(phy_angle)) + birdDisplaceY[phy_index] + temp;
     phy_time += 0.1;
-    birdDisplaceX[index] = phy_ux * phy_time;
-    birdDisplaceY[index] = (phy_uy * phy_time) - ((EARTH_GRAVITY * phy_time * phy_time)/2);
-    collisionEngine(index);
+    birdDisplaceX[phy_index] = bird_storeX[phy_index] + phy_ux * phy_time;
+    phy_vy = phy_uy - (EARTH_GRAVITY*phy_time);
+    birdDisplaceY[phy_index] = bird_storeY[phy_index] + (phy_uy * phy_time) - ((EARTH_GRAVITY * phy_time * phy_time)/2);
+    collisionEngine();
   }
   else
     phy_ux = phy_uy = phy_time = 0.0f;
@@ -660,6 +662,17 @@ void draw ()
   //  Don't change unless you are sure!!
   glm::mat4 MVP;	// MVP = Projection * View * Model
 
+  Matrices.model = glm::mat4(1.0f);
+  glm::mat4 translateGround = glm::translate (glm::vec3(0, 0, 0));        // glTranslatef
+  glm::mat4 rotateGround = glm::rotate(0.0f, glm::vec3(0,0,1));
+  Matrices.model *= translateGround * rotateGround;
+  MVP = VP * Matrices.model;
+  glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
+
+  draw3DObject(ground);
+  draw3DObject(PowerPanelOut);
+  draw3DObject(PowerPanelFill);
+
   // Load identity to model matrix
   for (int i = 0; i < numOfBirds; i++)
   {
@@ -679,15 +692,30 @@ void draw ()
     }
     else if(birdStatus[i] == 1)
     {
-      if((20.0f + (CANON_TUNNEL_LENGTH * sin(canon_tunnel_angle) + birdDisplaceY[i])) <= 0)
+      if((20.0f + ((CANON_TUNNEL_LENGTH * sin(phy_angle)) + birdDisplaceY[i])) <= 0)
       {
-        phy_start = false;
-        birdStatus[i + 1] = 1;
-        birdStatus[i] = 2;
+        birdDisplaceY[i] = -1*(20.0f + (CANON_TUNNEL_LENGTH * sin(phy_angle)));
+        phy_time = 0;
+        cout << "Initial ux = " << phy_ux << endl;
+        phy_ux /= 2;
+        phy_uy = -1*GROUND_REBOUND*phy_vy;
+        if(phy_ux < VELOCITY_MIN)
+        {
+          phy_start = false;
+          birdStatus[i + 1] = 1;
+          birdStatus[i] = 2;
+        }
+        else
+        {
+          bird_storeX[i] = birdDisplaceX[i];
+          bird_storeY[i] = birdDisplaceY[i];
+          physics_engine();
+        }
       }
       else
       {
-        physics_engine(i);
+        physics_engine();
+        phy_index = i;
         Matrices.model = glm::mat4(1.0f);
         if(!phy_start)
         {
@@ -728,16 +756,7 @@ void draw ()
 
   checkFall();
 
-  Matrices.model = glm::mat4(1.0f);
-  glm::mat4 translateGround = glm::translate (glm::vec3(0, 0, 0));        // glTranslatef
-  glm::mat4 rotateGround = glm::rotate(0.0f, glm::vec3(0,0,1));
-  Matrices.model *= translateGround * rotateGround;
-  MVP = VP * Matrices.model;
-  glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
 
-  draw3DObject(ground);
-  draw3DObject(PowerPanelOut);
-  draw3DObject(PowerPanelFill);
 
   if(canon_tunnel_angle + canon_tunnel_rotation >= 0 and canon_tunnel_angle + canon_tunnel_rotation < (M_PI/3))
     canon_tunnel_angle += canon_tunnel_rotation;
@@ -847,6 +866,7 @@ void initGL (GLFWwindow* window, int width, int height)
   // Generate the VAO, VBOs, vertices data & copy into the array buffer
 	createBird(10.0f, 1, 0, 0, 0, 1);
   createBird(15.0f, 0, 0, 0, 1, 2);
+  createBird(20.0f, 1, 1, 1, 2, 3);
   createGround();
   createCanon();
   createObstacle(3, 1, OBSTACLE_STARTSX);
