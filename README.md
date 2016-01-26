@@ -58,7 +58,8 @@ Use apt-get to install FreeGLUT, libglew, glm on Linux.
 	-Left Arrow for decreasing the power and right for increasing the power
 	-Mouse Left and Right keys for rotating the canon
 	-Space Bar for launching the bird
-   -Plus and Minus button to zoom out(Use numpad ones)
+   	-Plus and Minus button to zoom out(Use numpad ones)
+	-'P' keyboard key for using special power 
 
 ##Specifications
    -I've dealt with ice as brittle and hard to move object, You can just break it but cannot move it

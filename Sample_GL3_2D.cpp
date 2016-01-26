@@ -92,6 +92,15 @@ static void error_callback(int error, const char* description)
     fprintf(stderr, "Error: %s\n", description);
 }
 
+void stamp(float xFactor, float yFactor)
+{
+  phy_time = 0;
+  phy_ux *= xFactor;
+  phy_uy = yFactor * phy_vy;
+  bird_storeX[phy_index] = birdDisplaceX[phy_index];
+  bird_storeY[phy_index] = birdDisplaceY[phy_index];
+}
+
 void makeFall(int x, int y)
 {
   float loop = (float)all[x][y].replacing;
@@ -168,9 +177,33 @@ bool collisionDetect(float x, float y, float radius)
     return false;
 }
 
-bool collisionIntense(float x, float y)
+float collisionAngle(float x, float y)
 {
-  return true;
+  glm::vec3 obs = glm::vec3(x, y, 0);
+  glm::vec3 bird = glm::vec3(birdDisplaceX[phy_index], birdDisplaceY[phy_index], 0.0f);
+  glm::vec3 diff = glm::normalize(obs - bird);
+  glm::vec3 unit = glm::vec3(1.0f, 0.0f, 0.0f);
+  GLfloat angle = acos(glm::dot(diff, unit));
+  return angle;
+}
+
+bool collisionIntense(float x, float y, int status)
+{
+  if(status > 0)
+    return true;
+  cout << "Hello" << endl;
+  float angle = collisionAngle(x, y);
+  if(angle < M_PI/4)
+  {
+    if(phy_ux * cos(angle) >= BREAK_MIN)
+    {
+      stamp(0.8, 1);
+      return true;
+    }
+    else
+      stamp(0, 1);
+  }
+  return false;
 }
 
 void collisionEngine()
@@ -179,14 +212,20 @@ void collisionEngine()
   {
     if(collisionDetect(piggyX[i], piggyY[i], piggyRadius[i]))
     {
-      if(collisionIntense(piggyX[i], piggyY[i]))
+      if(colPiggy[i])
       {
-        if(piggyHurt[i]!=2)
+        if(collisionIntense(piggyX[i], piggyY[i], piggyHurt[i]))
         {
-          setObstacleDead(i, true);
-          piggyHurt[i] = 2;
-          score += 10;
+          if(piggyHurt[i]!=2)
+          {
+            setObstacleDead(i, true);
+            piggyHurt[i] = 2;
+            score += 10;
+          }
         }
+        else
+          piggyHurt[i] = 1;
+        colPiggy[i] = false;
       }
     }
   }
@@ -194,15 +233,21 @@ void collisionEngine()
   {
     if(collisionDetect(iceX[i], iceY[i], iceBoundingCircle[i]))
     {
-      if(collisionIntense(iceX[i], iceY[i]))
+      if(colIce[i])
       {
-        if(iceBroken[i]!=2)
+        if(collisionIntense(iceX[i], iceY[i], iceBroken[i]))
         {
-          setObstacleDead(i, false);
-          iceBroken[i] = 2;
-          score += 5;
-        }
-      } 
+          if(iceBroken[i]!=2)
+          {
+            setObstacleDead(i, false);
+            iceBroken[i] = 2;
+            score += 5;
+          }
+        } 
+        else
+          iceBroken[i] = 1;
+        colIce[i] = false;
+      }
     }
   }
 }
@@ -634,105 +679,6 @@ void draw ()
   draw3DObject(PowerPanelOut);
   draw3DObject(PowerPanelFill);
 
-  // Load identity to model matrix
-  for (int i = 0; i < numOfBirds; i++)
-  {
-    if(birdStatus[i] == 0)
-    {  
-      Matrices.model = glm::mat4(1.0f);
-      translateBird[i] = glm::translate (glm::vec3(0, 0, 0));        // glTranslatef
-      rotateBird[i] = glm::rotate(0.0f, glm::vec3(0,0,1));
-      Matrices.model *= translateBird[i] * rotateBird[i];
-      MVP = VP * Matrices.model;
-      glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
-      draw3DObject(birdBeak[i]);
-      draw3DObject(birdFace[i]);
-      draw3DObject(birdEyeIris[i]);
-      draw3DObject(birdEyeSclera[i]);
-      Matrices.model = glm::mat4(1.0f);
-    }
-    else if(birdStatus[i] == 1)
-    {
-      if((20.0f + ((CANON_TUNNEL_LENGTH * sin(phy_angle)) + birdDisplaceY[i])) <= 0)
-      {
-        birdDisplaceY[i] = -1*(20.0f + (CANON_TUNNEL_LENGTH * sin(phy_angle)));
-        phy_time = 0;
-        phy_ux /= 2;
-        phy_uy = -1*GROUND_REBOUND*phy_vy;
-        if(phy_ux < VELOCITY_MIN)
-        {
-          phy_start = false;
-          birdStatus[i + 1] = 1;
-          birdStatus[i] = 2;
-        }
-        else
-        {
-          bird_storeX[i] = birdDisplaceX[i];
-          bird_storeY[i] = birdDisplaceY[i];
-          physics_engine();
-        }
-      }
-      else
-      {
-        physics_engine();
-        phy_index = i;
-        Matrices.model = glm::mat4(1.0f);
-        if(!phy_start)
-        {
-          translateBird[i] = glm::translate (glm::vec3(60.0f + (CANON_TUNNEL_LENGTH * cos(canon_tunnel_angle)) + birdDisplaceX[i], 20.0f + (CANON_TUNNEL_LENGTH * sin(canon_tunnel_angle) + birdDisplaceY[i]), 0));        // glTranslatef
-          rotateBird[i] = glm::rotate(0.0f, glm::vec3(0,0,1));
-        }
-        else
-        {
-          float temp = (float)GROUND_HEIGHT + birdSize[i];
-          translateBird[i] = glm::translate (glm::vec3(phy_x[i] - temp, phy_y[i] - temp, 0));        // glTranslatef
-          rotateBird[i] = glm::rotate(0.0f, glm::vec3(0,0,1));
-        }
-        Matrices.model *= translateBird[i] * rotateBird[i];
-        MVP = VP * Matrices.model;
-        glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
-        draw3DObject(birdBeak[i]);
-        draw3DObject(birdFace[i]);
-        draw3DObject(birdEyeIris[i]);
-        draw3DObject(birdEyeSclera[i]);
-        Matrices.model = glm::mat4(1.0f);
-      }
-    }
-    else
-    {
-        Matrices.model = glm::mat4(1.0f);
-        float temp = (float)GROUND_HEIGHT + birdSize[i];
-        translateBird[i] = glm::translate (glm::vec3(phy_x[i] - temp, phy_y[i] - temp, 0));        // glTranslatef
-        rotateBird[i] = glm::rotate(0.0f, glm::vec3(0,0,1));
-        Matrices.model *= translateBird[i] * rotateBird[i];
-        MVP = VP * Matrices.model;
-        glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
-        draw3DObject(birdBeak[i]);
-        draw3DObject(birdFace[i]);
-        draw3DObject(birdEyeIris[i]);
-        draw3DObject(birdEyeSclera[i]);
-    }
-  }
-
-  checkFall();
-
-
-
-  if(canon_tunnel_angle + canon_tunnel_rotation >= 0 and canon_tunnel_angle + canon_tunnel_rotation < (M_PI/3))
-    canon_tunnel_angle += canon_tunnel_rotation;
-  Matrices.model = glm::mat4(1.0f);
-  glm::mat4 translateCanon = glm::translate (glm::vec3(CANON_WHEEL_CENTERX, CANON_WHEEL_CENTERY, 0));        // glTranslatef
-  glm::mat4 rotateCanon = glm::rotate(canon_tunnel_angle, glm::vec3(0, 0, 1));
-  Matrices.model *= translateCanon * rotateCanon;
-  translateCanon = glm::translate (glm::vec3(-1*CANON_WHEEL_CENTERX, -1*CANON_WHEEL_CENTERY, 0));        // glTranslatef
-  rotateCanon = glm::rotate(0.0f, glm::vec3(0, 0, 1));
-  Matrices.model *= translateCanon * rotateCanon; 
-  MVP = VP * Matrices.model;
-  glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
-
-  draw3DObject(canonTunnel);
-  draw3DObject(canonWheel);
-
   for (int i = 0; i < numOfIce; i++)
   {
     if(iceBroken[i]==0)
@@ -791,6 +737,126 @@ void draw ()
       draw3DObject(piggyRightHurtEye[i]);
     }
   }
+    // Load identity to model matrix
+  for (int i = 0; i < numOfBirds; i++)
+  {
+    if(birdStatus[i] == 0)
+    {  
+      Matrices.model = glm::mat4(1.0f);
+      translateBird[i] = glm::translate (glm::vec3(0, 0, 0));        // glTranslatef
+      rotateBird[i] = glm::rotate(0.0f, glm::vec3(0,0,1));
+      Matrices.model *= translateBird[i] * rotateBird[i];
+      MVP = VP * Matrices.model;
+      glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
+      draw3DObject(birdBeak[i]);
+      draw3DObject(birdFace[i]);
+      draw3DObject(birdEyeIris[i]);
+      draw3DObject(birdEyeSclera[i]);
+      Matrices.model = glm::mat4(1.0f);
+    }
+    else if(birdStatus[i] == 1)
+    {
+      if((20.0f + ((CANON_TUNNEL_LENGTH * sin(phy_angle)) + birdDisplaceY[i])) <= 0)
+      {
+        birdDisplaceY[i] = -1*(20.0f + (CANON_TUNNEL_LENGTH * sin(phy_angle)));
+        if(phy_ux < VELOCITY_MIN)
+        {
+          phy_start = false;
+          birdStatus[i + 1] = 1;
+          birdStatus[i] = 2;
+        }
+        else
+        {
+          stamp(0.5, -GROUND_REBOUND);
+          physics_engine();
+        }
+      }
+      else
+      {
+        physics_engine();
+        phy_index = i;
+        Matrices.model = glm::mat4(1.0f);
+        if(!phy_start)
+        {
+          translateBird[i] = glm::translate (glm::vec3(60.0f + (CANON_TUNNEL_LENGTH * cos(canon_tunnel_angle)) + birdDisplaceX[i], 20.0f + (CANON_TUNNEL_LENGTH * sin(canon_tunnel_angle) + birdDisplaceY[i]), 0));        // glTranslatef
+          rotateBird[i] = glm::rotate(0.0f, glm::vec3(0,0,1));
+        }
+        else
+        {
+          float temp = (float)GROUND_HEIGHT + birdSize[i];
+          translateBird[i] = glm::translate (glm::vec3(phy_x[i] - temp, phy_y[i] - temp, 0));        // glTranslatef
+          rotateBird[i] = glm::rotate(0.0f, glm::vec3(0,0,1));
+        }
+        Matrices.model *= translateBird[i] * rotateBird[i];
+        MVP = VP * Matrices.model;
+        glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
+        draw3DObject(birdBeak[i]);
+        draw3DObject(birdFace[i]);
+        draw3DObject(birdEyeIris[i]);
+        draw3DObject(birdEyeSclera[i]);
+        Matrices.model = glm::mat4(1.0f);
+      }
+    }
+    else
+    {
+      if(birdTime[i] < 5.0)
+      {
+        Matrices.model = glm::mat4(1.0f);
+        float temp = (float)GROUND_HEIGHT + birdSize[i];
+        translateBird[i] = glm::translate (glm::vec3(phy_x[i] - temp, phy_y[i] - temp, 0));        // glTranslatef
+        rotateBird[i] = glm::rotate(0.0f, glm::vec3(0,0,1));
+        Matrices.model *= translateBird[i] * rotateBird[i];
+        MVP = VP * Matrices.model;
+        glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
+        draw3DObject(birdBeak[i]);
+        draw3DObject(birdFace[i]);
+        draw3DObject(birdEyeIris[i]);
+        draw3DObject(birdEyeSclera[i]);
+        birdSpecial[i] = false;
+        birdTime[i]+=0.05;
+      }
+    }
+    if(birdSpecial[i] && restore > 0)
+    {
+        if(birdType[i] == 2 && birdStatus[i] < 2)
+        {
+          float temp = (float)GROUND_HEIGHT + birdSize[i];
+          birdSize[i]*=1.2;
+          // GLfloat x, GLfloat y, GLfloat z, GLfloat radius, GLint numberOfSides, GLfloat red, GLfloat blue, GLfloat green)
+          birdBomb = drawCircle(temp, temp, 0.0f, birdSize[i], 360, 1, 1, 1);
+          draw3DObject(birdBomb);
+          restore -= 0.5;
+        }
+        else if(birdType[i] == 3)
+        {
+          stamp(2, 2);
+          restore = 0.0;
+        }
+    }
+    else
+    {
+      if(birdType[i]==2)
+        birdSize[i] = 15.0f;
+    }
+  }
+
+  checkFall();
+
+  if(canon_tunnel_angle + canon_tunnel_rotation >= 0 and canon_tunnel_angle + canon_tunnel_rotation < (M_PI/3))
+    canon_tunnel_angle += canon_tunnel_rotation;
+  Matrices.model = glm::mat4(1.0f);
+  glm::mat4 translateCanon = glm::translate (glm::vec3(CANON_WHEEL_CENTERX, CANON_WHEEL_CENTERY, 0));        // glTranslatef
+  glm::mat4 rotateCanon = glm::rotate(canon_tunnel_angle, glm::vec3(0, 0, 1));
+  Matrices.model *= translateCanon * rotateCanon;
+  translateCanon = glm::translate (glm::vec3(-1*CANON_WHEEL_CENTERX, -1*CANON_WHEEL_CENTERY, 0));        // glTranslatef
+  rotateCanon = glm::rotate(0.0f, glm::vec3(0, 0, 1));
+  Matrices.model *= translateCanon * rotateCanon; 
+  MVP = VP * Matrices.model;
+  glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
+
+  draw3DObject(canonTunnel);
+  draw3DObject(canonWheel);
+
   static int fontScale = 100;
   float fontScaleValue = 1.0;
 
@@ -798,19 +864,22 @@ void draw ()
   glm::mat4 translateText = glm::translate (glm::vec3(9*screen_width/10, 9*screen_height/10, 0));        // glTranslatef
   Matrices.model *= translateText;
   MVP = VP * Matrices.model;
-  glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
   glm::vec3 fontColor = glm::vec3(0, 0, 0);
 
   glUseProgram(fontProgramID);
   glUniformMatrix4fv(GL3Font.fontMatrixID, 1, GL_FALSE, &MVP[0][0]);
   glUniform3fv(GL3Font.fontColorID, 1, &fontColor[0]);
-
-  GL3Font.font->Render("Score:");
-  translateText = glm::translate (glm::vec3(90.0f, 0.0f, 0));        // glTranslatef
-  Matrices.model *= translateText;
-  MVP = VP * Matrices.model;
-  glUniformMatrix4fv(GL3Font.fontMatrixID, 1, GL_FALSE, &MVP[0][0]);
-  GL3Font.font->Render(dispScore);  
+  if(score < 50)
+  {
+    GL3Font.font->Render("Score:");
+    translateText = glm::translate (glm::vec3(90.0f, 0.0f, 0));        // glTranslatef
+    Matrices.model *= translateText;
+    MVP = VP * Matrices.model;
+    glUniformMatrix4fv(GL3Font.fontMatrixID, 1, GL_FALSE, &MVP[0][0]);
+    GL3Font.font->Render(dispScore);
+  }
+  else
+    GL3Font.font->Render("You Won!"); 
 
 }
 
@@ -879,7 +948,7 @@ void initGL (GLFWwindow* window, int width, int height)
   // Get a handle for our "MVP" uniform
   Matrices.TexMatrixID = glGetUniformLocation(textureProgramID, "MVP");
 	createBird(10.0f, 1, 0, 0, 0, 1);
-  createBird(15.0f, 0, 0, 0, 1, 2);
+  createBird(15.0f, 0.3, 0.3, 0.3, 1, 2);
   createBird(12.0f, 1, 1, 0, 2, 3);
   createGround();
   createCanon();
@@ -1003,6 +1072,10 @@ void keyboard (GLFWwindow* window, int key, int scancode, int action, int mods)
                   phy_angle = canon_tunnel_angle;
                   phy_ux = canonMomentum * cos(canon_tunnel_angle);
                   phy_uy = canonMomentum * sin(canon_tunnel_angle);
+                  for (int i = 0; i < numOfPiggy; ++i)
+                    colPiggy[i] = true;
+                  for (int i = 0; i < numOfIce; ++i)
+                    colIce[i] = true;
                 }
                 break;
             case GLFW_KEY_RIGHT:
@@ -1022,6 +1095,10 @@ void keyboard (GLFWwindow* window, int key, int scancode, int action, int mods)
                 screen_width /= ZOOM_FRACTION;
                 reshapeWindow(window, screen_height, screen_width);
                 createGround();
+                break;
+            case GLFW_KEY_P:
+                birdSpecial[phy_index] = true;
+                restore = 5.00;
                 break;
             default:
                 break;

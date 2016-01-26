@@ -16,5 +16,5 @@
 #define GROUND_REBOUND 0.5f
 #define TIME_REFERENCE 0.1f
 #define VELOCITY_MIN 20.0f
-#define BREAK_MIN 60.0f
+#define BREAK_MIN 30.0f
 #define ZOOM_FRACTION 0.8f
