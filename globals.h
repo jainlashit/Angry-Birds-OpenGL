@@ -14,6 +14,7 @@ struct GLMatrices {
 	glm::mat4 model;
 	glm::mat4 view;
 	GLuint MatrixID;
+  GLuint TexMatrixID;
 } Matrices;
 
 typedef struct Obstacle{
@@ -25,7 +26,14 @@ typedef struct Obstacle{
   bool toReplace;
 }Obstacle;
 
-GLuint programID;
+
+struct FTGLFont {
+  FTFont* font;
+  GLuint fontMatrixID;
+  GLuint fontColorID;
+} GL3Font;
+
+GLuint programID, fontProgramID, textureProgramID;
 
 Obstacle all[10][10];
 VAO *ground;
@@ -33,7 +41,7 @@ VAO *bird[10], *birdFace[10], *birdBeak[10], *birdEyeIris[10], *birdEyeSclera[10
 VAO *canonWheel, *canonTunnel, *PowerPanelFill, *PowerPanelOut;
 VAO *iceBricks[30], *iceBricksOutline[30], *iceBreakLines[30];
 VAO *piggyFace[30], *piggyLeftEyeIris[10], *piggyRightEyeIris[10], *piggyLeftEyeSclera[10], *piggyRightEyeSclera[10], *piggyNose[10];
-
+VAO *piggyLeftHurtEye[30], *piggyRightHurtEye[30];
 float screen_height = SCREEN_HEIGHT;
 float screen_width = SCREEN_WIDTH;
 int numOfIce = 0, numOfPiggy = 0, numOfBirds = 0;
@@ -46,6 +54,9 @@ float piggyRadius[10] = {0}, piggyX[10], piggyY[10], piggyTranslate[10] = {0};
 float canonMomentum = 100.0f;
 float canon_tunnel_rotation = 0;
 float canon_tunnel_angle = 0;
+bool collision_status[10] = {false};
+int score = 0;
+char dispScore[10];
 
 
 

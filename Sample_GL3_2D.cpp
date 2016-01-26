@@ -8,6 +8,7 @@ void keyboard (GLFWwindow* window, int key, int scancode, int action, int mods);
 void keyboardChar (GLFWwindow* window, unsigned int key);
 void mouseButton (GLFWwindow* window, int button, int action, int mods);
 void reshapeWindow (GLFWwindow* window, int width, int height);
+void physics_engine();
 
 /* Function to load Shaders - Use it as it is */
 GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path) {
@@ -180,14 +181,12 @@ void collisionEngine()
     {
       if(collisionIntense(piggyX[i], piggyY[i]))
       {
-        if(piggyHurt[i]!=1)
+        if(piggyHurt[i]!=2)
         {
           setObstacleDead(i, true);
-          piggyHurt[i] = 1;
+          piggyHurt[i] = 2;
+          score += 10;
         }
-      }
-      else
-      {
       }
     }
   }
@@ -201,6 +200,7 @@ void collisionEngine()
         {
           setObstacleDead(i, false);
           iceBroken[i] = 2;
+          score += 5;
         }
       } 
     }
@@ -535,6 +535,9 @@ void createPiggy(GLfloat xPiggy, GLfloat yPiggy)
   piggyRightEyeSclera[numOfPiggy]  = drawCircle(xPiggy + eyeIrisShiftX + (padding/4), yPiggy - ((1.4) * padding) + eyeIrisShiftY, 0, (OBSTACLE_ICE_SIZE/20) , 360, 0.0, 0.0, 0.0);
   piggyLeftEyeIris[numOfPiggy]  = drawCircle(xPiggy - eyeIrisShiftX, yPiggy - ((1.5) * padding) + eyeIrisShiftY, 0, (OBSTACLE_ICE_SIZE/10) , 360, 1.0, 1.0, 1.0);
   piggyRightEyeIris[numOfPiggy] = drawCircle(xPiggy + eyeIrisShiftX, yPiggy - ((1.5) * padding) + eyeIrisShiftY, 0, (OBSTACLE_ICE_SIZE/10) , 360, 1.0, 1.0, 1.0);
+  piggyLeftHurtEye[numOfPiggy]  = drawCircle(xPiggy - eyeIrisShiftX, yPiggy - ((1.5) * padding) + eyeIrisShiftY, 0, (OBSTACLE_ICE_SIZE/10) , 360, 0.5, 0.0, 0.5);
+  piggyRightHurtEye[numOfPiggy]  = drawCircle(xPiggy + eyeIrisShiftX, yPiggy - ((1.5) * padding) + eyeIrisShiftY, 0, (OBSTACLE_ICE_SIZE/10) , 360, 0.5, 0.0, 0.5);
+
   piggyNose[numOfPiggy] = drawCircle(xPiggy, yPiggy - ((1.8) * padding), 0, (OBSTACLE_ICE_SIZE/9) , 360, 0.0, 0.7, 0.0);
   
   piggyRadius[numOfPiggy] = (OBSTACLE_ICE_SIZE/2) - padding;
@@ -568,7 +571,7 @@ void createObstacle(GLint sizeOfMesh, GLfloat depth, GLfloat startX)
         iceBoundingCircle[numOfIce] =  (OBSTACLE_ICE_SIZE / 2) - padding;
         iceBricksOutline[numOfIce] = drawRectangle(iceX[numOfIce], iceY[numOfIce], 0.0f, iceBoundingCircle[numOfIce] + padding, iceBoundingCircle[numOfIce] + padding, 0.65f, 0.94f, 0.95f, false);
         iceBricks[numOfIce] = drawRectangle(iceX[numOfIce], iceY[numOfIce], 0.0f, iceBoundingCircle[numOfIce], iceBoundingCircle[numOfIce], 0.65f, 0.94f, 0.95f, true);
-        iceBreakLines[numOfIce] = drawCircle(iceX[numOfIce], iceY[numOfIce], 0.0f, iceBoundingCircle[numOfIce], 7, 0.0, 0.0, 1.0);
+        iceBreakLines[numOfIce] = drawCircle(iceX[numOfIce], iceY[numOfIce], 0.0f, (2*iceBoundingCircle[numOfIce])/3, 7, 0.0, 0.0, 1.0);
         numOfIce++;
       }
       else
@@ -620,7 +623,6 @@ void draw ()
   // For each model you render, since the MVP will be different (at least the M part)
   //  Don't change unless you are sure!!
   glm::mat4 MVP;	// MVP = Projection * View * Model
-
   Matrices.model = glm::mat4(1.0f);
   glm::mat4 translateGround = glm::translate (glm::vec3(0, 0, 0));        // glTranslatef
   glm::mat4 rotateGround = glm::rotate(0.0f, glm::vec3(0,0,1));
@@ -743,13 +745,24 @@ void draw ()
       glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
       draw3DObject(iceBricksOutline[i]);
       draw3DObject(iceBricks[i]);
-      draw3DObject(iceBreakLines[i]);
+    }
+    else if(iceBroken[i] == 1)
+    {  
+      Matrices.model = glm::mat4(1.0f);
+      glm::mat4 translateIce = glm::translate (glm::vec3(0, -1*iceTranslate[i], 0));        // glTranslatef
+      glm::mat4 rotateIce = glm::rotate(0.0f, glm::vec3(0, 0, 1));
+      Matrices.model *= translateIce* rotateIce; 
+      MVP = VP * Matrices.model;
+      glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
+      draw3DObject(iceBricksOutline[i]);
+      draw3DObject(iceBricks[i]);
+      draw3DObject(iceBreakLines[i]);      
     }
   }
 
   for (int i = 0; i < numOfPiggy; i++)
   {
-    if(!piggyHurt[i])
+    if(piggyHurt[i] == 0)
     {
       Matrices.model = glm::mat4(1.0f);
       glm::mat4 translatePiggy = glm::translate (glm::vec3(0, -1*piggyTranslate[i], 0));        // glTranslatef
@@ -764,7 +777,40 @@ void draw ()
       draw3DObject(piggyLeftEyeSclera[i]);
       draw3DObject(piggyRightEyeSclera[i]);
     }
+    else if(piggyHurt[i] == 1)
+    {
+      Matrices.model = glm::mat4(1.0f);
+      glm::mat4 translatePiggy = glm::translate (glm::vec3(0, -1*piggyTranslate[i], 0));        // glTranslatef
+      glm::mat4 rotatePiggy = glm::rotate(0.0f, glm::vec3(0, 0, 1));
+      Matrices.model *= translatePiggy* rotatePiggy; 
+      MVP = VP * Matrices.model;
+      glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
+      draw3DObject(piggyFace[i]);
+      draw3DObject(piggyNose[i]);
+      draw3DObject(piggyLeftHurtEye[i]);
+      draw3DObject(piggyRightHurtEye[i]);
+    }
   }
+  static int fontScale = 100;
+  float fontScaleValue = 1.0;
+
+  Matrices.model = glm::mat4(1.0f);
+  glm::mat4 translateText = glm::translate (glm::vec3(9*screen_width/10, 9*screen_height/10, 0));        // glTranslatef
+  Matrices.model *= translateText;
+  MVP = VP * Matrices.model;
+  glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
+  glm::vec3 fontColor = glm::vec3(0, 0, 0);
+
+  glUseProgram(fontProgramID);
+  glUniformMatrix4fv(GL3Font.fontMatrixID, 1, GL_FALSE, &MVP[0][0]);
+  glUniform3fv(GL3Font.fontColorID, 1, &fontColor[0]);
+
+  GL3Font.font->Render("Score:");
+  translateText = glm::translate (glm::vec3(90.0f, 0.0f, 0));        // glTranslatef
+  Matrices.model *= translateText;
+  MVP = VP * Matrices.model;
+  glUniformMatrix4fv(GL3Font.fontMatrixID, 1, GL_FALSE, &MVP[0][0]);
+  GL3Font.font->Render(dispScore);  
 
 }
 
@@ -824,6 +870,14 @@ GLFWwindow* initGLFW (int width, int height)
 // Generate the VAO, VBOs, vertices data & copy into the array buffer
 void initGL (GLFWwindow* window, int width, int height)
 {
+    // Load Textures
+  // Enable Texture0 as current texture memory
+  glActiveTexture(GL_TEXTURE0);
+
+  // Create and compile our GLSL program from the texture shaders
+  textureProgramID = LoadShaders( "TextureRender.vert", "TextureRender.frag" );
+  // Get a handle for our "MVP" uniform
+  Matrices.TexMatrixID = glGetUniformLocation(textureProgramID, "MVP");
 	createBird(10.0f, 1, 0, 0, 0, 1);
   createBird(15.0f, 0, 0, 0, 1, 2);
   createBird(12.0f, 1, 1, 0, 2, 3);
@@ -837,6 +891,7 @@ void initGL (GLFWwindow* window, int width, int height)
 	// Get a handle for our "MVP" uniform
 	Matrices.MatrixID = glGetUniformLocation(programID, "MVP");
 
+
 	
 	reshapeWindow (window, width, height);
 
@@ -844,8 +899,34 @@ void initGL (GLFWwindow* window, int width, int height)
 	glClearColor (0.0f, 0.4f, 0.8f, 0.0f); // R, G, B, A
 	glClearDepth (1.0f);
 
-	glEnable (GL_DEPTH_TEST);
+	glEnable (GL_DEPTH_TEST | GL_BLEND);
 	glDepthFunc (GL_LEQUAL);
+
+    // Initialise FTGL stuff
+  const char* fontfile = "arial.ttf";
+  GL3Font.font = new FTExtrudeFont(fontfile); // 3D extrude style rendering
+
+  if(GL3Font.font->Error())
+  {
+    cout << "Error: Could not load font `" << fontfile << "'" << endl;
+    glfwTerminate();
+    exit(EXIT_FAILURE);
+  }
+
+  // Create and compile our GLSL program from the font shaders
+  fontProgramID = LoadShaders( "fontrender.vert", "fontrender.frag" );
+  GLint fontVertexCoordAttrib, fontVertexNormalAttrib, fontVertexOffsetUniform;
+  fontVertexCoordAttrib = glGetAttribLocation(fontProgramID, "vertexPosition");
+  fontVertexNormalAttrib = glGetAttribLocation(fontProgramID, "vertexNormal");
+  fontVertexOffsetUniform = glGetUniformLocation(fontProgramID, "pen");
+  GL3Font.fontMatrixID = glGetUniformLocation(fontProgramID, "MVP");
+  GL3Font.fontColorID = glGetUniformLocation(fontProgramID, "fontColor");
+
+  GL3Font.font->ShaderLocations(fontVertexCoordAttrib, fontVertexNormalAttrib, fontVertexOffsetUniform);
+  GL3Font.font->FaceSize(50);
+  GL3Font.font->Depth(0);
+  GL3Font.font->Outset(0, 0);
+  GL3Font.font->CharMap(ft_encoding_unicode);
 
     cout << "VENDOR: " << glGetString(GL_VENDOR) << endl;
     cout << "RENDERER: " << glGetString(GL_RENDERER) << endl;
@@ -868,6 +949,7 @@ int main (int argc, char** argv)
 
         // OpenGL Draw commands
         draw();
+        snprintf(dispScore, sizeof(dispScore), "%d", score);
 
         // Swap Frame Buffer in double buffering
         glfwSwapBuffers(window);
