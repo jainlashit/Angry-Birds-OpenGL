@@ -1,63 +1,13 @@
 #include "header.h"
 #include "constant.h"
+#include "globals.h"
 
 using namespace std;
-
-struct VAO {
-    GLuint VertexArrayID;
-    GLuint VertexBuffer;
-    GLuint ColorBuffer;
-
-    GLenum PrimitiveMode;
-    GLenum FillMode;
-    int NumVertices;
-};
-typedef struct VAO VAO;
-
-struct GLMatrices {
-	glm::mat4 projection;
-	glm::mat4 model;
-	glm::mat4 view;
-	GLuint MatrixID;
-} Matrices;
-
-typedef struct Obstacle{
-  int index;
-  int x;
-  int y;
-  int replacing;
-  bool isPiggy;
-  bool toReplace;
-}Obstacle;
-
-GLuint programID;
-
-
-
-float screen_height = SCREEN_HEIGHT;
-float screen_width = SCREEN_WIDTH;
-int numOfIce = 0, numOfPiggy = 0, numOfBirds = 0;
-int birdStatus[10] = {0}, birdType[10]; 
-float birdDisplaceX[10] , birdDisplaceY[10], birdSize[10];
-int iceBroken[30] = {0};
-float iceBoundingCircle[30], iceX[30], iceY[30], iceTranslate[10] = {0};
-int piggyHurt[10] = {0};
-float piggyRadius[10] = {0}, piggyX[10], piggyY[10], piggyTranslate[10] = {0};
-float canonMomentum = 100.0f;
-Obstacle all[10][10];
-VAO *ground;
-VAO *bird[10], *birdFace[10], *birdBeak[10], *birdEyeIris[10], *birdEyeSclera[10];
-VAO *canonWheel, *canonTunnel, *PowerPanelFill, *PowerPanelOut;
-VAO *iceBricks[30], *iceBricksOutline[30];
-VAO *piggyFace[30], *piggyLeftEyeIris[10], *piggyRightEyeIris[10], *piggyLeftEyeSclera[10], *piggyRightEyeSclera[10], *piggyNose[10];
 
 void keyboard (GLFWwindow* window, int key, int scancode, int action, int mods);
 void keyboardChar (GLFWwindow* window, unsigned int key);
 void mouseButton (GLFWwindow* window, int button, int action, int mods);
 void reshapeWindow (GLFWwindow* window, int width, int height);
-
-
-
 
 /* Function to load Shaders - Use it as it is */
 GLuint LoadShaders(const char * vertex_file_path,const char * fragment_file_path) {
@@ -204,11 +154,6 @@ void setObstacleDead(int index, bool isPiggy)
   }
 }
 
-
-float phy_ux, phy_uy, phy_vy, phy_time = 0.0f, phy_x[10], phy_y[10], phy_angle, bird_storeX[10] = {0}, bird_storeY[10] = {0};
-int phy_index;
-bool phy_start = false;
-
 bool collisionDetect(float x, float y, float radius)
 {
   float bird[] = {phy_x[phy_index], phy_y[phy_index], 0.0f};
@@ -222,16 +167,27 @@ bool collisionDetect(float x, float y, float radius)
     return false;
 }
 
+bool collisionIntense(float x, float y)
+{
+  return true;
+}
+
 void collisionEngine()
 {
   for (int i = 0; i < numOfPiggy; ++i)
   {
     if(collisionDetect(piggyX[i], piggyY[i], piggyRadius[i]))
     {
-      if(piggyHurt[i]!=1)
+      if(collisionIntense(piggyX[i], piggyY[i]))
       {
-        setObstacleDead(i, true);
-        piggyHurt[i] = 1;
+        if(piggyHurt[i]!=1)
+        {
+          setObstacleDead(i, true);
+          piggyHurt[i] = 1;
+        }
+      }
+      else
+      {
       }
     }
   }
@@ -239,11 +195,14 @@ void collisionEngine()
   {
     if(collisionDetect(iceX[i], iceY[i], iceBoundingCircle[i]))
     {
-      if(iceBroken[i]!=1)
+      if(collisionIntense(iceX[i], iceY[i]))
       {
-        setObstacleDead(i, false);
-        iceBroken[i] = 1;
-        } 
+        if(iceBroken[i]!=2)
+        {
+          setObstacleDead(i, false);
+          iceBroken[i] = 2;
+        }
+      } 
     }
   }
 }
@@ -353,9 +312,6 @@ void draw3DObject (struct VAO* vao)
  * Customizable functions *
  **************************/
 
-float canon_tunnel_rotation = 0;
-float canon_tunnel_angle = 0;
-
 
 VAO* drawCircle(GLfloat x, GLfloat y, GLfloat z, GLfloat radius, GLint numberOfSides, GLfloat red, GLfloat blue, GLfloat green)
 {
@@ -390,7 +346,7 @@ VAO* drawCircle(GLfloat x, GLfloat y, GLfloat z, GLfloat radius, GLint numberOfS
     allColors[(i * 3) + 2] = green;
   }
 
-  return create3DObject(GL_TRIANGLE_FAN, numberOfVertices, allVertices, allColors, GL_FILL);
+  return create3DObject(GL_TRIANGLE_FAN, numberOfVertices, allVertices, allColors, GL_LINE);
 }
 
 VAO* drawRectangle(GLfloat x, GLfloat y, GLfloat z, GLfloat halfLength, GLfloat halfWidth, GLfloat red, GLfloat blue, GLfloat green, bool fill_mode) 
@@ -612,6 +568,7 @@ void createObstacle(GLint sizeOfMesh, GLfloat depth, GLfloat startX)
         iceBoundingCircle[numOfIce] =  (OBSTACLE_ICE_SIZE / 2) - padding;
         iceBricksOutline[numOfIce] = drawRectangle(iceX[numOfIce], iceY[numOfIce], 0.0f, iceBoundingCircle[numOfIce] + padding, iceBoundingCircle[numOfIce] + padding, 0.65f, 0.94f, 0.95f, false);
         iceBricks[numOfIce] = drawRectangle(iceX[numOfIce], iceY[numOfIce], 0.0f, iceBoundingCircle[numOfIce], iceBoundingCircle[numOfIce], 0.65f, 0.94f, 0.95f, true);
+        iceBreakLines[numOfIce] = drawCircle(iceX[numOfIce], iceY[numOfIce], 0.0f, iceBoundingCircle[numOfIce], 7, 0.0, 0.0, 1.0);
         numOfIce++;
       }
       else
@@ -698,7 +655,6 @@ void draw ()
       {
         birdDisplaceY[i] = -1*(20.0f + (CANON_TUNNEL_LENGTH * sin(phy_angle)));
         phy_time = 0;
-        cout << "Initial ux = " << phy_ux << endl;
         phy_ux /= 2;
         phy_uy = -1*GROUND_REBOUND*phy_vy;
         if(phy_ux < VELOCITY_MIN)
@@ -777,7 +733,7 @@ void draw ()
 
   for (int i = 0; i < numOfIce; i++)
   {
-    if(!iceBroken[i])
+    if(iceBroken[i]==0)
     {
       Matrices.model = glm::mat4(1.0f);
       glm::mat4 translateIce = glm::translate (glm::vec3(0, -1*iceTranslate[i], 0));        // glTranslatef
@@ -787,6 +743,7 @@ void draw ()
       glUniformMatrix4fv(Matrices.MatrixID, 1, GL_FALSE, &MVP[0][0]);
       draw3DObject(iceBricksOutline[i]);
       draw3DObject(iceBricks[i]);
+      draw3DObject(iceBreakLines[i]);
     }
   }
 
@@ -862,14 +819,14 @@ GLFWwindow* initGLFW (int width, int height)
 
 /* Initialize the OpenGL rendering properties */
 /* Add all the models to be created here */
+/* Objects should be created before any other gl function and shaders */
+// Create the models
+// Generate the VAO, VBOs, vertices data & copy into the array buffer
 void initGL (GLFWwindow* window, int width, int height)
 {
-    /* Objects should be created before any other gl function and shaders */
-	// Create the models
-  // Generate the VAO, VBOs, vertices data & copy into the array buffer
 	createBird(10.0f, 1, 0, 0, 0, 1);
   createBird(15.0f, 0, 0, 0, 1, 2);
-  createBird(20.0f, 1, 1, 1, 2, 3);
+  createBird(12.0f, 1, 1, 0, 2, 3);
   createGround();
   createCanon();
   createObstacle(3, 1, OBSTACLE_STARTSX);
